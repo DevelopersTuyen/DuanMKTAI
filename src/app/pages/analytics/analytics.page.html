@@ -1,0 +1,95 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">Performance analytics</span>
+      <h2 class="fw-bold mb-3">Phan tich reach, CTR, engagement va conversion theo tung nen tang.</h2>
+      <p class="card-copy mb-0">
+        Cac KPI nay la dau vao de AI danh gia hieu qua content, tim content angle dang thang va uu tien kenh dang bai.
+      </p>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-md-6 col-xl-3" *ngFor="let platform of platforms">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">{{ platform.platform }}</div>
+          <div class="metric-label">Reach</div>
+          <div class="metric-value mb-3">{{ platform.reach }}</div>
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="muted-text">Engagement</span>
+              <strong>{{ platform.engagementRate }}%</strong>
+            </div>
+            <div class="progress">
+              <div class="progress-bar bg-app-teal" [style.width.%]="platform.engagementRate * 10"></div>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <div>
+              <div class="muted-text small">CTR</div>
+              <strong>{{ platform.ctr }}%</strong>
+            </div>
+            <div>
+              <div class="muted-text small">Conversion</div>
+              <strong>{{ platform.conversionRate }}%</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-8">
+        <article class="glass-card table-surface p-3 p-lg-4">
+          <div class="card-title mb-1">Top content performance</div>
+          <div class="card-copy mb-3">Bang tong hop cac bai dang va video co kha nang scale tiep.</div>
+
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Platform</th>
+                  <th>Format</th>
+                  <th>Views</th>
+                  <th>CTR</th>
+                  <th>Engagement</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of topContents">
+                  <td class="fw-semibold">{{ item.title }}</td>
+                  <td>{{ item.platform }}</td>
+                  <td>{{ item.format }}</td>
+                  <td>{{ item.views }}</td>
+                  <td>{{ item.ctr }}%</td>
+                  <td>{{ item.engagementRate }}%</td>
+                  <td>
+                    <span class="status-chip" [ngClass]="item.statusClass">{{ item.statusLabel }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-1">Insight tu AI</div>
+          <div class="card-copy mb-3">Tong hop tu metric gap, retention pattern va keyword trend.</div>
+
+          <div class="soft-list">
+            <div class="soft-list-item" *ngFor="let recommendation of recommendations">
+              <span class="badge-dot"></span>
+              <div>
+                <div class="fw-bold mb-1">{{ recommendation.title }}</div>
+                <div class="muted-text">{{ recommendation.detail }}</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

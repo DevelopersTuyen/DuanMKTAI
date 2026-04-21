@@ -1,0 +1,102 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">Configuration</span>
+      <h2 class="fw-bold mb-3">Cau hinh Ollama, Google Sheets va quy tac automation.</h2>
+      <p class="card-copy mb-0">
+        Day la bo setting ban dau de nhanh chong ket noi model local, dich du lieu va tan suat dong bo.
+      </p>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-7">
+        <article class="glass-card form-card p-4 h-100">
+          <div class="card-title mb-3">System settings</div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Backend API base URL</label>
+              <input class="form-control" [(ngModel)]="config.apiBaseUrl" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Ollama base URL</label>
+              <input class="form-control" [(ngModel)]="config.ollamaBaseUrl" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Ollama model</label>
+              <input class="form-control" [(ngModel)]="config.ollamaModel" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Spreadsheet ID</label>
+              <input class="form-control" [(ngModel)]="config.spreadsheetId" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Worksheet</label>
+              <input class="form-control" [(ngModel)]="config.worksheet" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Sync interval (minutes)</label>
+              <input class="form-control" type="number" [(ngModel)]="config.syncInterval" />
+            </div>
+          </div>
+
+          <div class="row g-3 mt-3">
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="autoSync" [(ngModel)]="config.autoSync" />
+                <label class="form-check-label" for="autoSync">Auto sync</label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="autoRecommend" [(ngModel)]="config.autoRecommend" />
+                <label class="form-check-label" for="autoRecommend">AI recommendations</label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="autoSchedule" [(ngModel)]="config.autoSchedule" />
+                <label class="form-check-label" for="autoSchedule">Auto scheduling</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-grid d-md-flex gap-2 mt-4">
+            <button class="btn btn-app px-4" (click)="saveSettings()">Luu cau hinh</button>
+          </div>
+
+          <div class="alert alert-success mt-3 mb-0" *ngIf="saveMessage">{{ saveMessage }}</div>
+        </article>
+      </div>
+
+      <div class="col-xl-5">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Deployment notes</div>
+          <div class="soft-list">
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Ollama local runtime</strong>
+                <div class="muted-text">Dam bao `ollama serve` dang chay va da pull `qwen3:8b` truoc khi generate content.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Google Sheets writer</strong>
+                <div class="muted-text">Can backend hoac Apps Script de ghi du lieu service account an toan.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>OAuth connectors</strong>
+                <div class="muted-text">Facebook, LinkedIn, TikTok va Google can consent flow rieng tren server.</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

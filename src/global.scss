@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
 /*
  * App Global CSS
  * ----------------------------------------------------------------------------
@@ -24,6 +26,7 @@
 @import "@ionic/angular/css/text-alignment.css";
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
+@import "bootstrap/dist/css/bootstrap.min.css";
 
 /**
  * Ionic Dark Mode
@@ -35,3 +38,266 @@
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import "@ionic/angular/css/palettes/dark.system.css";
+
+:root {
+  --app-surface: #f8f2ea;
+  --app-surface-strong: #fffaf4;
+  --app-card: rgba(255, 255, 255, 0.82);
+  --app-card-border: rgba(139, 92, 38, 0.14);
+  --app-text: #172033;
+  --app-muted: #607086;
+  --app-accent: #c46f15;
+  --app-accent-soft: #f6d8b1;
+  --app-teal: #0f766e;
+  --app-teal-soft: #caece8;
+  --app-shadow: 0 24px 60px rgba(27, 33, 45, 0.08);
+}
+
+html,
+body,
+ion-app {
+  background:
+    radial-gradient(circle at top left, rgba(246, 216, 177, 0.6), transparent 30%),
+    radial-gradient(circle at top right, rgba(202, 236, 232, 0.55), transparent 26%),
+    linear-gradient(180deg, #fffaf4 0%, #f7efe7 100%);
+  color: var(--app-text);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+}
+
+body {
+  letter-spacing: -0.01em;
+}
+
+ion-content.page-shell::part(scroll) {
+  background: transparent;
+}
+
+.app-page {
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 1.25rem 1rem 2.5rem;
+}
+
+.glass-card {
+  background: var(--app-card);
+  border: 1px solid var(--app-card-border);
+  border-radius: 28px;
+  box-shadow: var(--app-shadow);
+}
+
+.hero-panel {
+  overflow: hidden;
+  position: relative;
+}
+
+.hero-panel::after {
+  background: linear-gradient(135deg, rgba(196, 111, 21, 0.12), rgba(15, 118, 110, 0.08));
+  border-radius: 50%;
+  content: "";
+  height: 220px;
+  position: absolute;
+  right: -70px;
+  top: -80px;
+  width: 220px;
+}
+
+.section-kicker {
+  color: var(--app-accent);
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin-bottom: 0.85rem;
+  text-transform: uppercase;
+}
+
+.metric-tile {
+  padding: 1.25rem;
+}
+
+.metric-label {
+  color: var(--app-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  color: var(--app-text);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0.65rem 0 0.45rem;
+}
+
+.metric-note {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.trend-pill,
+.pill {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.38rem 0.8rem;
+}
+
+.pill {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  color: #334155;
+}
+
+.trend-up {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--app-teal);
+}
+
+.trend-flat {
+  background: rgba(30, 41, 59, 0.08);
+  color: #475569;
+}
+
+.trend-alert {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.card-title {
+  color: var(--app-text);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.card-copy {
+  color: var(--app-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.soft-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.soft-list-item {
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 18px;
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+}
+
+.soft-list-item .badge-dot {
+  background: linear-gradient(135deg, var(--app-accent), #f59e0b);
+  border-radius: 999px;
+  flex: 0 0 10px;
+  height: 10px;
+  margin-top: 0.45rem;
+  width: 10px;
+}
+
+.status-chip {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.32rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.status-live {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--app-teal);
+}
+
+.status-draft {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+}
+
+.status-warning {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.table-surface {
+  overflow: hidden;
+}
+
+.table-surface .table {
+  margin-bottom: 0;
+}
+
+.table-surface .table > :not(caption) > * > * {
+  background: transparent;
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+  color: var(--app-text);
+  padding: 1rem 0.9rem;
+}
+
+.muted-text {
+  color: var(--app-muted);
+}
+
+.progress {
+  --bs-progress-bg: rgba(148, 163, 184, 0.14);
+  height: 0.55rem;
+}
+
+.progress-bar.bg-app-accent {
+  background-color: var(--app-accent);
+}
+
+.progress-bar.bg-app-teal {
+  background-color: var(--app-teal);
+}
+
+.form-card .form-control,
+.form-card .form-select {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(148, 163, 184, 0.28);
+  border-radius: 16px;
+  min-height: 3rem;
+}
+
+.form-card .form-control:focus,
+.form-card .form-select:focus {
+  border-color: rgba(196, 111, 21, 0.45);
+  box-shadow: 0 0 0 0.25rem rgba(196, 111, 21, 0.12);
+}
+
+.btn-app {
+  background: linear-gradient(135deg, #c46f15, #e28d2f);
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  font-weight: 700;
+  min-height: 3rem;
+}
+
+.btn-app-secondary {
+  background: rgba(15, 118, 110, 0.08);
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 16px;
+  color: var(--app-teal);
+  font-weight: 700;
+  min-height: 3rem;
+}
+
+@media (max-width: 991px) {
+  .app-page {
+    padding-top: 0.85rem;
+  }
+
+  .metric-value {
+    font-size: 1.7rem;
+  }
+}

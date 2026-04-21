@@ -1,0 +1,178 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">Data ingestion</span>
+      <h2 class="fw-bold mb-3">Thu thap va dong bo du lieu tu nhieu tai khoan, nhieu page va nhieu website.</h2>
+      <p class="card-copy mb-0">
+        Moi connector duoc thiet ke de lay post, video, likes, comments, shares, views, CTR va chi so website,
+        sau do day ve Google Sheets de theo doi va phan tich tap trung.
+      </p>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-md-6 col-xl-4" *ngFor="let channel of syncChannels">
+        <article class="glass-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <div class="card-title">{{ channel.name }}</div>
+              <div class="card-copy">{{ channel.accounts }} account / page groups</div>
+            </div>
+            <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="muted-text">Last sync</span>
+            <strong>{{ channel.lastSync }}</strong>
+          </div>
+          <div class="progress mb-2">
+            <div class="progress-bar bg-app-accent" [style.width.%]="channel.healthScore"></div>
+          </div>
+          <div class="muted-text">Do on dinh ket noi: {{ channel.healthScore }}%</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-12">
+        <article class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div>
+              <div class="card-title">Website sync</div>
+              <div class="card-copy">
+                Dong bo Google Analytics 4, Google Search Console va WordPress posts vao worksheet
+                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>.
+              </div>
+            </div>
+
+            <div class="d-grid d-md-flex gap-2">
+              <span class="status-chip" [ngClass]="googleStatus?.ready ? 'status-live' : 'status-warning'">
+                {{ googleStatus?.ready ? 'Ready' : 'Missing config' }}
+              </span>
+              <button class="btn btn-app px-4" (click)="syncGoogleWebsite()" [disabled]="isSyncing">
+                <span *ngIf="!isSyncing">Sync website</span>
+                <span *ngIf="isSyncing" class="d-inline-flex align-items-center gap-2">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  Dang sync
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>WordPress sites</strong>
+                  <div class="muted-text">{{ googleStatus?.wordpressSitesCount || 0 }} sites configured</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Spreadsheet</strong>
+                  <div class="muted-text">{{ googleStatus?.spreadsheetId || 'Chua co ID' }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>GA4 property</strong>
+                  <div class="muted-text">{{ googleStatus?.analyticsPropertyId || 'Chua co property' }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Search Console</strong>
+                  <div class="muted-text">{{ googleStatus?.searchConsoleSiteUrl || 'Chua co site URL' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-danger mt-3 mb-0" *ngIf="syncError">{{ syncError }}</div>
+          <div class="alert alert-success mt-3 mb-0" *ngIf="syncResult">
+            {{ syncResult.message }} GA rows: {{ syncResult.analyticsRows }}, GSC rows: {{ syncResult.searchConsoleRows }}, WordPress posts: {{ syncResult.wordpressPosts }}.
+          </div>
+
+          <div class="soft-list mt-3" *ngIf="googleStatus?.warnings?.length">
+            <div class="soft-list-item" *ngFor="let warning of googleStatus?.warnings">
+              <span class="badge-dot"></span>
+              <div class="muted-text">{{ warning }}</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-8">
+        <article class="glass-card table-surface p-3 p-lg-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <div class="card-title">Ban do tai khoan quan ly</div>
+              <div class="card-copy">He thong ho tro gom nhom theo account, page, property va website.</div>
+            </div>
+            <span class="pill">Google Sheets ready</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Account cluster</th>
+                  <th>Assets</th>
+                  <th>Destination</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let account of accounts">
+                  <td class="fw-semibold">{{ account.platform }}</td>
+                  <td>{{ account.account }}</td>
+                  <td>{{ account.assets }}</td>
+                  <td>{{ account.destination }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Pipeline luu tru</div>
+          <div class="soft-list">
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Raw sheet</strong>
+                <div class="muted-text">Luu metric goc theo platform, page va post ID.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Normalized sheet</strong>
+                <div class="muted-text">Chuan hoa fields de dashboard va AI co the doc thong nhat.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Insight sheet</strong>
+                <div class="muted-text">Tong hop KPI, anomalies va de xuat chien luoc hang ngay.</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

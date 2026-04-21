@@ -34,6 +34,15 @@ log.txt
 npm-debug.log
 yarn-error.log
 
+# Python
+/backend/.venv
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+/backend/.env
+/backend/*.json
+
 # IDEs and editors
 .idea/
 .project

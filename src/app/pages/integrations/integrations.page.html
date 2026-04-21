@@ -1,0 +1,34 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">API integration map</span>
+      <h2 class="fw-bold mb-3">Ket noi social APIs, GA4, GSC, Google Sheets va workflow tools.</h2>
+      <p class="card-copy mb-0">
+        Day la lop tich hop de lay du lieu chinh xac, tu dong hoa quy trinh marketing va dong bo bao cao.
+      </p>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-md-6 col-xl-4" *ngFor="let integration of integrations">
+        <article class="glass-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div class="card-title">{{ integration.name }}</div>
+            <span class="status-chip" [ngClass]="integration.statusClass">{{ integration.status }}</span>
+          </div>
+          <div class="mb-2">
+            <div class="muted-text small">Managed assets</div>
+            <strong>{{ integration.accounts }}</strong>
+          </div>
+          <div class="mb-2">
+            <div class="muted-text small">Scope</div>
+            <span>{{ integration.scope }}</span>
+          </div>
+          <div>
+            <div class="muted-text small">Last sync</div>
+            <strong>{{ integration.lastSync }}</strong>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

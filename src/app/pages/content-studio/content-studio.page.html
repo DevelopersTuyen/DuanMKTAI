@@ -1,0 +1,80 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">AI content studio</span>
+      <h2 class="fw-bold mb-3">Tao bai viet marketing tu du lieu hieu suat va brief campaign.</h2>
+      <p class="card-copy mb-0">
+        Form nay ket noi den Ollama voi model `qwen3:8b`, phu hop de sinh copy, hook, CTA va goi y visual ngay trong dashboard.
+      </p>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-5">
+        <article class="glass-card form-card p-4 h-100">
+          <div class="card-title mb-3">Generate brief</div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Platform</label>
+            <input class="form-control" [(ngModel)]="prompt.platform" placeholder="Facebook, LinkedIn, TikTok..." />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Goal</label>
+            <input class="form-control" [(ngModel)]="prompt.goal" placeholder="Tang reach, SQL, CTR..." />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tone</label>
+            <input class="form-control" [(ngModel)]="prompt.tone" placeholder="Bold, data-driven, playful..." />
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Brief</label>
+            <textarea class="form-control" rows="6" [(ngModel)]="prompt.brief"></textarea>
+          </div>
+
+          <div class="d-grid gap-2">
+            <button class="btn btn-app" (click)="generateContent()" [disabled]="isGenerating">
+              <span *ngIf="!isGenerating">Generate voi Ollama</span>
+              <span *ngIf="isGenerating" class="d-inline-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm"></span>
+                Dang sinh noi dung
+              </span>
+            </button>
+          </div>
+
+          <div class="alert alert-warning mt-3 mb-0" *ngIf="generationError">{{ generationError }}</div>
+        </article>
+      </div>
+
+      <div class="col-xl-7">
+        <article class="glass-card p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <div class="card-title">Generated output</div>
+              <div class="card-copy">Preview copy de dua vao workflow duyet va scheduling.</div>
+            </div>
+            <span class="pill">Model: qwen3:8b</span>
+          </div>
+          <pre class="generated-preview mb-0">{{ generatedCopy }}</pre>
+        </article>
+
+        <article class="glass-card p-4">
+          <div class="card-title mb-3">Auto-suggest content angles</div>
+          <div class="row g-3">
+            <div class="col-md-6" *ngFor="let idea of ideas">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <div class="fw-bold mb-1">{{ idea.title }}</div>
+                  <div class="muted-text mb-2">{{ idea.angle }}</div>
+                  <button class="btn btn-sm btn-app-secondary" (click)="applyIdea(idea)">Nap vao form</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

@@ -1,0 +1,60 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">SEO intelligence</span>
+      <h2 class="fw-bold mb-3">Phan tich keyword, CTR va vi tri xep hang tu Google Search Console.</h2>
+      <p class="card-copy mb-0">
+        Cac keyword co position 5-12 la khu vuc can uu tien refresh de day them organic clicks ma khong can tang chi phi media.
+      </p>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-8">
+        <article class="glass-card table-surface p-3 p-lg-4">
+          <div class="card-title mb-1">Keyword opportunity board</div>
+          <div class="card-copy mb-3">Tong hop tu GSC: click, impression, CTR, position va hanh dong toi uu de xuat.</div>
+
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Clicks</th>
+                  <th>Impressions</th>
+                  <th>CTR</th>
+                  <th>Position</th>
+                  <th>Recommended action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let keyword of keywords">
+                  <td class="fw-semibold">{{ keyword.keyword }}</td>
+                  <td>{{ keyword.clicks }}</td>
+                  <td>{{ keyword.impressions }}</td>
+                  <td>{{ keyword.ctr }}%</td>
+                  <td>{{ keyword.position }}</td>
+                  <td>{{ keyword.action }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">SEO strategy notes</div>
+          <div class="soft-list">
+            <div class="soft-list-item" *ngFor="let recommendation of recommendations">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>{{ recommendation.title }}</strong>
+                <div class="muted-text">{{ recommendation.detail }}</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

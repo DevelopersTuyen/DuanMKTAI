@@ -1,3 +1,65 @@
 <ion-app>
-  <ion-router-outlet></ion-router-outlet>
+  <ion-split-pane contentId="main-content" when="lg">
+    <ion-menu contentId="main-content" type="overlay" class="side-menu">
+      <ion-content class="menu-surface">
+        <div class="brand-panel">
+          <p class="eyebrow mb-2">MKTAI Control Room</p>
+          <h1>Marketing AI Hub</h1>
+          <p class="brand-copy mb-0">
+            Dong bo social, SEO, content AI va tu dong hoa publishing trong mot workspace Ionic Angular.
+          </p>
+        </div>
+
+        <div class="menu-section-label">Modules</div>
+        <ion-list lines="none" class="menu-list">
+          <ion-menu-toggle auto-hide="false" *ngFor="let page of appPages">
+            <ion-item
+              button
+              detail="false"
+              [routerLink]="page.url"
+              routerDirection="root"
+              [class.active-item]="isActive(page.url)"
+            >
+              <ion-icon slot="start" [name]="page.icon"></ion-icon>
+              <ion-label>
+                <div class="item-title">{{ page.title }}</div>
+                <div class="item-note">{{ page.note }}</div>
+              </ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        </ion-list>
+
+        <div class="menu-footer">
+          <div class="footer-label">Stack</div>
+          <div class="stack-pills">
+            <span class="stack-pill">Ionic Angular</span>
+            <span class="stack-pill">Bootstrap 5</span>
+            <span class="stack-pill">Chart.js</span>
+            <span class="stack-pill">Ollama Qwen 3:8B</span>
+          </div>
+        </div>
+      </ion-content>
+    </ion-menu>
+
+    <div class="main-shell" id="main-content">
+      <ion-header class="ion-no-border shell-header">
+        <ion-toolbar>
+          <ion-buttons slot="start">
+            <ion-menu-button></ion-menu-button>
+          </ion-buttons>
+          <ion-title>{{ currentTitle }}</ion-title>
+          <ion-buttons slot="end">
+            <ion-chip color="warning" outline="true">
+              <ion-label>Google Sheets Sync</ion-label>
+            </ion-chip>
+            <ion-chip color="success" outline="true">
+              <ion-label>Qwen 3:8B</ion-label>
+            </ion-chip>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+
+      <ion-router-outlet></ion-router-outlet>
+    </div>
+  </ion-split-pane>
 </ion-app>

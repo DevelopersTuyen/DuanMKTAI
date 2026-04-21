@@ -1,0 +1,72 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">Publishing engine</span>
+      <h2 class="fw-bold mb-3">Len lich dang bai va chon khung gio toi uu theo tung nen tang.</h2>
+      <p class="card-copy mb-0">
+        Scheduler sap xep hang doi asset, de xuat gio dang va audience target dua tren lich su tuong tac da dong bo.
+      </p>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-xl-8">
+        <article class="glass-card table-surface p-3 p-lg-4">
+          <div class="card-title mb-1">Hang doi publishing</div>
+          <div class="card-copy mb-3">Day la danh sach asset cho publishing tu dong sau khi duyet.</div>
+
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Channel</th>
+                  <th>Slot</th>
+                  <th>Best window</th>
+                  <th>Audience</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of queue">
+                  <td class="fw-semibold">{{ item.asset }}</td>
+                  <td>{{ item.channel }}</td>
+                  <td>{{ item.slot }}</td>
+                  <td>{{ item.bestWindow }}</td>
+                  <td>{{ item.audience }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Automation rules</div>
+          <div class="soft-list">
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Neu CTR > 5%</strong>
+                <div class="muted-text">Tao bien the format va xep lich them 2 slot trong 48 gio.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Neu engagement giam 20%</strong>
+                <div class="muted-text">Doi hook va chuyen sang khung gio moi goi y boi AI.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Blog SEO refresh</strong>
+                <div class="muted-text">Tu dong dat lich cap nhat noi dung cho bai co CTR gap cao.</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>
