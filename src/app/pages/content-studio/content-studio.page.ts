@@ -21,12 +21,12 @@ export class ContentStudioPage implements OnDestroy, OnInit {
 
   prompt: MarketingPromptRequest = {
     platform: 'Facebook + LinkedIn',
-    goal: 'Tang lead chat luong',
-    tone: 'Tu tin, practical, data-driven',
-    brief: 'Chien dich nham toi doanh nghiep can dashboard tong hop social, SEO va AI content.',
+    goal: 'Tăng lead chất lượng',
+    tone: 'Tự tin, thực tế, dựa trên dữ liệu',
+    brief: 'Chiến dịch nhắm tới doanh nghiệp cần bảng điều khiển tổng hợp social, SEO và nội dung AI.',
   };
 
-  generatedCopy = 'Noi dung sinh boi Ollama se hien o day sau khi bam Generate.';
+  generatedCopy = 'Nội dung do Ollama tạo sẽ hiển thị ở đây sau khi bấm Tạo nội dung.';
   generationError = '';
   isGenerating = false;
 
@@ -48,7 +48,7 @@ export class ContentStudioPage implements OnDestroy, OnInit {
         this.isGenerating = false;
       },
       error: () => {
-        this.generationError = 'Khong the ket noi Ollama. Da fallback sang mau noi dung offline.';
+        this.generationError = 'Không thể kết nối tới Ollama. Hệ thống đã chuyển sang mẫu nội dung ngoại tuyến.';
         this.isGenerating = false;
       },
     });
@@ -57,8 +57,8 @@ export class ContentStudioPage implements OnDestroy, OnInit {
   applyIdea(idea: ContentIdea): void {
     this.prompt = {
       platform: idea.channel,
-      goal: 'Tang engagement va lead intent',
-      tone: 'Sac net, huu ich, mang tinh huong dan',
+      goal: 'Tăng tương tác và ý định chuyển đổi',
+      tone: 'Sắc nét, hữu ích, mang tính hướng dẫn',
       brief: `${idea.title}. Angle: ${idea.angle}.`,
     };
   }

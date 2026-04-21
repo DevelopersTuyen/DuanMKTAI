@@ -3,45 +3,46 @@
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <div class="row align-items-center g-4">
         <div class="col-lg-8 position-relative">
-          <span class="section-kicker">Marketing Control Tower</span>
-          <h2 class="display-6 fw-bold mb-3">Theo doi du lieu social, SEO va AI content trong mot dashboard duy nhat.</h2>
+          <span class="section-kicker">Trung tâm điều phối marketing</span>
+          <h2 class="display-6 fw-bold mb-3">Theo dõi dữ liệu website, WordPress và SEO thật trong một bảng điều khiển duy nhất.</h2>
           <p class="lead muted-text mb-4">
-            Dashboard nay mo phong kien truc cho he thong tu dong thu thap Facebook, LinkedIn, YouTube, TikTok,
-            WordPress, Google Analytics va Google Search Console, dong bo len Google Sheets va phan tich bang Ollama.
+            Bảng điều khiển này đang đọc dữ liệu thật từ Google Analytics, Google Sheets đồng bộ và bài viết WordPress,
+            sau đó tổng hợp lại để hiển thị các chỉ số website quan trọng nhất.
           </p>
           <div class="d-flex flex-wrap gap-2">
-            <span class="pill">Facebook Pages</span>
-            <span class="pill">LinkedIn</span>
-            <span class="pill">YouTube</span>
-            <span class="pill">TikTok</span>
+            <span class="pill">Thuộc tính GA4</span>
             <span class="pill">WordPress</span>
-            <span class="pill">GA4 + GSC</span>
+            <span class="pill">Google Sheets</span>
+            <span class="pill">Dữ liệu trang GSC</span>
           </div>
         </div>
 
         <div class="col-lg-4">
           <div class="glass-card metric-tile h-100">
-            <div class="metric-label">AI Guidance</div>
-            <div class="metric-value">Qwen 3:8B</div>
+            <div class="metric-label">Phân tích AI cục bộ</div>
+            <div class="metric-value">{{ localAiAnalysis?.model || 'qwen3:8b' }}</div>
             <p class="metric-note mb-3">
-              Chay local qua Ollama de goi y content angle, CTA va uu tien kenh dang bai theo KPI.
+              {{ localAiAnalysis?.summary || 'Hệ thống sẽ dùng Ollama cục bộ để phân tích dữ liệu sheet khi có kết quả.' }}
             </p>
             <div class="soft-list">
               <div class="soft-list-item">
                 <span class="badge-dot"></span>
                 <div>
-                  <strong>Dong bo moi 60 phut</strong>
-                  <div class="muted-text">Nap so lieu vao Google Sheets va dashboard tong hop.</div>
+                  <strong>Nguồn phân tích</strong>
+                  <div class="muted-text">
+                    {{ localAiAnalysis?.source === 'ollama' ? 'Ollama cục bộ' : 'Bản phân tích dự phòng' }}
+                  </div>
                 </div>
               </div>
               <div class="soft-list-item">
                 <span class="badge-dot"></span>
                 <div>
-                  <strong>Auto recommendation</strong>
-                  <div class="muted-text">Uu tien format video ngan va SEO refresh theo CTR gap.</div>
+                  <strong>Thời điểm tạo</strong>
+                  <div class="muted-text">{{ localAiAnalysis?.generatedAt || 'Chưa có dữ liệu' }}</div>
                 </div>
               </div>
             </div>
+            <div class="alert alert-danger mt-3 mb-0" *ngIf="aiAnalysisError">{{ aiAnalysisError }}</div>
           </div>
         </div>
       </div>
@@ -65,10 +66,10 @@
         <article class="glass-card p-4 h-100">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <div class="card-title">Xu huong traffic va social interaction</div>
-              <div class="card-copy">Tong hop organic traffic va luong truy cap tu social trong 7 ngay gan nhat.</div>
+              <div class="card-title">Xu hướng lưu lượng truy cập website</div>
+              <div class="card-copy">Tổng hợp số phiên website thật theo lịch sử đồng bộ gần nhất.</div>
             </div>
-            <span class="pill">Weekly performance</span>
+            <span class="pill">Lịch sử website</span>
           </div>
           <div class="chart-wrap">
             <canvas #performanceChart></canvas>
@@ -78,8 +79,8 @@
 
       <div class="col-xl-4">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Ty trong reach theo kenh</div>
-          <div class="card-copy mb-3">Phan bo uu tien ngan sach va team content theo dong reach hien tai.</div>
+          <div class="card-title mb-1">Tỷ trọng lượt xem trang theo domain</div>
+          <div class="card-copy mb-3">Phân bổ lưu lượng website thật theo từng domain đang được đồng bộ.</div>
           <div class="doughnut-wrap">
             <canvas #distributionChart></canvas>
           </div>
@@ -98,10 +99,10 @@
         <article class="glass-card p-4 h-100">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <div class="card-title">Tinh trang dong bo du lieu</div>
-              <div class="card-copy">Moi kenh co the quan ly nhieu account, nhieu page va nhieu website.</div>
+              <div class="card-title">Tình trạng đồng bộ dữ liệu</div>
+              <div class="card-copy">Cụm website, WordPress site và thuộc tính GA4 đang được đồng bộ thật.</div>
             </div>
-            <span class="pill">Google Sheets sink</span>
+            <span class="pill">Đẩy về Google Sheets</span>
           </div>
 
           <div class="soft-list">
@@ -111,18 +112,18 @@
                 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                   <div>
                     <div class="fw-bold">{{ channel.name }}</div>
-                    <div class="muted-text">{{ channel.accounts }} account / page groups</div>
+                    <div class="muted-text">{{ channel.accounts }} cụm tài khoản / trang</div>
                   </div>
                   <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
                 </div>
                 <div class="d-flex justify-content-between mt-3 mb-2">
-                  <span class="muted-text">Health score</span>
+                  <span class="muted-text">Điểm ổn định</span>
                   <strong>{{ channel.healthScore }}%</strong>
                 </div>
                 <div class="progress">
                   <div class="progress-bar bg-app-teal" [style.width.%]="channel.healthScore"></div>
                 </div>
-                <div class="muted-text mt-2">Lan sync gan nhat: {{ channel.lastSync }}</div>
+                <div class="muted-text mt-2">Lần đồng bộ gần nhất: {{ channel.lastSync }}</div>
               </div>
             </div>
           </div>
@@ -131,8 +132,8 @@
 
       <div class="col-lg-6">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">De xuat chien luoc tu AI</div>
-          <div class="card-copy mb-3">Goi y duoc rut ra tu CTR, engagement, keyword gap va throughput cua content engine.</div>
+          <div class="card-title mb-1">Đề xuất chiến lược website</div>
+          <div class="card-copy mb-3">Gợi ý được rút ra từ lượt xem trang, số phiên, bài viết WordPress và dữ liệu SEO thật.</div>
 
           <div class="soft-list">
             <div class="soft-list-item" *ngFor="let rec of recommendations">
@@ -145,6 +146,42 @@
                   </span>
                 </div>
                 <div class="muted-text">{{ rec.detail }}</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="row g-4 mt-1">
+      <div class="col-xl-8">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-1">Phân tích từ AI cục bộ</div>
+          <div class="card-copy mb-3">
+            AI sẽ phân tích các sheet `website`, `facebook`, `tiktok`, `linkedin`, `youtube`. Hiện tại chỉ có dữ liệu thật của website.
+          </div>
+
+          <div class="analysis-surface" *ngIf="localAiAnalysis; else pendingAiAnalysis">{{ localAiAnalysis.analysis }}</div>
+          <ng-template #pendingAiAnalysis>
+            <div class="muted-text">Đang chờ bản phân tích từ mô hình AI cục bộ.</div>
+          </ng-template>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Trạng thái nguồn dữ liệu</div>
+          <div class="soft-list">
+            <div class="soft-list-item" *ngFor="let channel of localAiAnalysis?.channels || []">
+              <span class="badge-dot"></span>
+              <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                  <strong>{{ channel.name }}</strong>
+                  <span class="status-chip" [ngClass]="channel.rows > 0 ? 'status-live' : 'status-draft'">
+                    {{ channel.status }}
+                  </span>
+                </div>
+                <div class="muted-text">{{ channel.detail }}</div>
               </div>
             </div>
           </div>

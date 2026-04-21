@@ -1,29 +1,29 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">SEO intelligence</span>
-      <h2 class="fw-bold mb-3">Phan tich keyword, CTR va vi tri xep hang tu Google Search Console.</h2>
+      <span class="section-kicker">Thông tin SEO</span>
+      <h2 class="fw-bold mb-3">Phân tích trang SEO, CTR và vị trí xếp hạng từ dữ liệu Search Console thật.</h2>
       <p class="card-copy mb-0">
-        Cac keyword co position 5-12 la khu vuc can uu tien refresh de day them organic clicks ma khong can tang chi phi media.
+        Nếu Search Console chưa cấp quyền cho service account, trang này sẽ hiển thị đúng trạng thái thiếu dữ liệu thay vì dữ liệu mô phỏng.
       </p>
     </section>
 
     <section class="row g-4">
       <div class="col-xl-8">
         <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="card-title mb-1">Keyword opportunity board</div>
-          <div class="card-copy mb-3">Tong hop tu GSC: click, impression, CTR, position va hanh dong toi uu de xuat.</div>
+          <div class="card-title mb-1">Bảng cơ hội SEO theo trang</div>
+          <div class="card-copy mb-3">Tổng hợp trang từ GSC: lượt nhấp, lượt hiển thị, CTR, vị trí và hành động đề xuất.</div>
 
           <div class="table-responsive">
             <table class="table align-middle">
               <thead>
                 <tr>
-                  <th>Keyword</th>
-                  <th>Clicks</th>
-                  <th>Impressions</th>
+                  <th>Trang</th>
+                  <th>Lượt nhấp</th>
+                  <th>Lượt hiển thị</th>
                   <th>CTR</th>
-                  <th>Position</th>
-                  <th>Recommended action</th>
+                  <th>Vị trí</th>
+                  <th>Hành động đề xuất</th>
                 </tr>
               </thead>
               <tbody>
@@ -38,12 +38,15 @@
               </tbody>
             </table>
           </div>
+          <div class="muted-text" *ngIf="!keywords.length">
+            Chưa có dữ liệu Search Console thật để hiển thị bảng SEO theo trang. Hãy kiểm tra quyền truy cập của service account.
+          </div>
         </article>
       </div>
 
       <div class="col-xl-4">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">SEO strategy notes</div>
+          <div class="card-title mb-3">Ghi chú chiến lược SEO</div>
           <div class="soft-list">
             <div class="soft-list-item" *ngFor="let recommendation of recommendations">
               <span class="badge-dot"></span>

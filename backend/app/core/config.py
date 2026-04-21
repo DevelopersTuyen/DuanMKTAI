@@ -35,8 +35,11 @@ class Settings(BaseSettings):
     google_service_account_email: str | None = None
     google_service_account_file: str | None = None
     google_service_account_json: str | None = None
+    wordpress_posts_worksheet: str = "Post_web"
+    daily_report_worksheet: str = "reportday"
     google_search_console_site_url: str | None = None
     google_analytics_property_id: str | None = None
+    google_analytics_property_ids_json: str | None = None
     facebook_app_id: str | None = None
     facebook_app_secret: str | None = None
     facebook_access_token: str | None = None
@@ -86,6 +89,18 @@ class Settings(BaseSettings):
                     application_password=self.wordpress_application_password,
                 )
             ]
+
+        return []
+
+    def get_google_analytics_property_ids(self) -> list[str]:
+        if self.google_analytics_property_ids_json and self.google_analytics_property_ids_json.strip():
+            data = json.loads(self.google_analytics_property_ids_json)
+            if not isinstance(data, list):
+                raise ValueError("GOOGLE_ANALYTICS_PROPERTY_IDS_JSON must be a JSON array.")
+            return [str(item).strip() for item in data if str(item).strip()]
+
+        if self.google_analytics_property_id and self.google_analytics_property_id.strip():
+            return [self.google_analytics_property_id.strip()]
 
         return []
 

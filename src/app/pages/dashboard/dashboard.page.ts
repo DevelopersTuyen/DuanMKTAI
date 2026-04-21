@@ -2,7 +2,15 @@ import { AfterViewInit, Component, DestroyRef, ElementRef, OnDestroy, OnInit, Vi
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 
-import { ChannelShare, DashboardKpi, MarketingData, Recommendation, SyncChannel, TrendPoint } from '../../core/services/marketing-data';
+import {
+  ChannelShare,
+  DashboardKpi,
+  LocalAiAnalysisResponse,
+  MarketingData,
+  Recommendation,
+  SyncChannel,
+  TrendPoint,
+} from '../../core/services/marketing-data';
 
 Chart.register(...registerables);
 
@@ -24,6 +32,8 @@ export class DashboardPage implements AfterViewInit, OnDestroy, OnInit {
   performanceTrend: TrendPoint[] = [];
   syncChannels: SyncChannel[] = [];
   recommendations: Recommendation[] = [];
+  localAiAnalysis?: LocalAiAnalysisResponse;
+  aiAnalysisError = '';
 
   private performanceChartRef?: Chart<'line'>;
   private distributionChartRef?: Chart<'doughnut'>;
@@ -39,6 +49,18 @@ export class DashboardPage implements AfterViewInit, OnDestroy, OnInit {
         this.syncChannels = response.syncChannels;
         this.recommendations = response.recommendations;
         this.renderCharts();
+      });
+
+    this.marketingData.getLocalAiAnalysis()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.localAiAnalysis = response;
+          this.aiAnalysisError = '';
+        },
+        error: () => {
+          this.aiAnalysisError = 'Không thể lấy bản phân tích từ AI cục bộ.';
+        },
       });
   }
 
@@ -75,7 +97,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy, OnInit {
         labels: this.performanceTrend.map((item) => item.label),
         datasets: [
           {
-            label: 'Organic + social traffic (K)',
+            label: 'Phiên website 28 ngày',
             data: this.performanceTrend.map((item) => item.value),
             borderColor: '#c46f15',
             backgroundColor: 'rgba(196, 111, 21, 0.18)',

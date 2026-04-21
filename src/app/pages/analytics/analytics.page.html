@@ -1,10 +1,10 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Performance analytics</span>
-      <h2 class="fw-bold mb-3">Phan tich reach, CTR, engagement va conversion theo tung nen tang.</h2>
+      <span class="section-kicker">Phân tích hiệu suất</span>
+      <h2 class="fw-bold mb-3">Phân tích lượt xem trang, số phiên và bài viết WordPress theo từng website.</h2>
       <p class="card-copy mb-0">
-        Cac KPI nay la dau vao de AI danh gia hieu qua content, tim content angle dang thang va uu tien kenh dang bai.
+        Các KPI này đang đọc từ dữ liệu website thật đã đồng bộ lên sheet, không còn là dữ liệu mô phỏng đối với phần website.
       </p>
     </section>
 
@@ -12,11 +12,11 @@
       <div class="col-md-6 col-xl-3" *ngFor="let platform of platforms">
         <article class="glass-card p-4 h-100">
           <div class="card-title mb-3">{{ platform.platform }}</div>
-          <div class="metric-label">Reach</div>
+          <div class="metric-label">Lượt xem trang</div>
           <div class="metric-value mb-3">{{ platform.reach }}</div>
           <div class="mb-3">
             <div class="d-flex justify-content-between mb-1">
-              <span class="muted-text">Engagement</span>
+              <span class="muted-text">Tương tác</span>
               <strong>{{ platform.engagementRate }}%</strong>
             </div>
             <div class="progress">
@@ -29,7 +29,7 @@
               <strong>{{ platform.ctr }}%</strong>
             </div>
             <div>
-              <div class="muted-text small">Conversion</div>
+              <div class="muted-text small">Chất lượng</div>
               <strong>{{ platform.conversionRate }}%</strong>
             </div>
           </div>
@@ -40,20 +40,20 @@
     <section class="row g-4">
       <div class="col-xl-8">
         <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="card-title mb-1">Top content performance</div>
-          <div class="card-copy mb-3">Bang tong hop cac bai dang va video co kha nang scale tiep.</div>
+          <div class="card-title mb-1">Nội dung WordPress nổi bật</div>
+          <div class="card-copy mb-3">Bảng tổng hợp các bài viết website thật đang có lưu lượng cao nhất.</div>
 
           <div class="table-responsive">
             <table class="table align-middle">
               <thead>
                 <tr>
-                  <th>Title</th>
-                  <th>Platform</th>
-                  <th>Format</th>
-                  <th>Views</th>
+                  <th>Tiêu đề</th>
+                  <th>Nền tảng</th>
+                  <th>Định dạng</th>
+                  <th>Lượt xem</th>
                   <th>CTR</th>
-                  <th>Engagement</th>
-                  <th>Status</th>
+                  <th>Tương tác</th>
+                  <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
@@ -76,8 +76,8 @@
 
       <div class="col-xl-4">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Insight tu AI</div>
-          <div class="card-copy mb-3">Tong hop tu metric gap, retention pattern va keyword trend.</div>
+          <div class="card-title mb-1">Thông tin chi tiết website</div>
+          <div class="card-copy mb-3">Tổng hợp từ domain dẫn đầu, trang nổi bật và bài viết WordPress cần tối ưu.</div>
 
           <div class="soft-list">
             <div class="soft-list-item" *ngFor="let recommendation of recommendations">

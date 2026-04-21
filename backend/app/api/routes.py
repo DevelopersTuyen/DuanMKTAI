@@ -8,9 +8,11 @@ from app.models import (
     ContentResponse,
     DashboardResponse,
     DataSyncResponse,
+    DailyReportSyncResponse,
     GoogleWebsiteStatusResponse,
     GoogleWebsiteSyncResponse,
     IntegrationsResponse,
+    LocalAiAnalysisResponse,
     MarketingPromptRequest,
     ReportsResponse,
     SchedulerResponse,
@@ -29,8 +31,15 @@ from app.services.mock_data import (
     get_seo_insights_data,
     get_settings_data,
 )
+from app.services.daily_report import sync_daily_report
 from app.services.google_website import get_google_website_status, sync_google_website_data
+from app.services.local_ai_analysis import get_local_ai_analysis
 from app.services.ollama_client import generate_marketing_copy
+from app.services.website_reporting import (
+    get_website_analytics_data,
+    get_website_dashboard_data,
+    get_website_seo_data,
+)
 
 router = APIRouter()
 
@@ -42,19 +51,24 @@ async def health() -> dict[str, str]:
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def dashboard(settings: Settings = Depends(get_settings)) -> DashboardResponse:
-    wordpress_sites_count = len(settings.get_wordpress_sites()) or 3
-    return get_dashboard_data(wordpress_sites_count)
+    return get_website_dashboard_data(settings)
+
+
+@router.get("/ai/local-analysis", response_model=LocalAiAnalysisResponse)
+async def ai_local_analysis(settings: Settings = Depends(get_settings)) -> LocalAiAnalysisResponse:
+    return await get_local_ai_analysis(settings)
 
 
 @router.get("/data-sync", response_model=DataSyncResponse)
 async def data_sync(settings: Settings = Depends(get_settings)) -> DataSyncResponse:
     wordpress_sites_count = len(settings.get_wordpress_sites()) or 3
-    return get_data_sync_data(wordpress_sites_count)
+    analytics_property_count = len(settings.get_google_analytics_property_ids()) or 1
+    return get_data_sync_data(wordpress_sites_count, analytics_property_count)
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)
-async def analytics() -> AnalyticsResponse:
-    return get_analytics_data()
+async def analytics(settings: Settings = Depends(get_settings)) -> AnalyticsResponse:
+    return get_website_analytics_data(settings)
 
 
 @router.get("/content", response_model=ContentResponse)
@@ -81,8 +95,8 @@ async def campaigns() -> CampaignsResponse:
 
 
 @router.get("/seo-insights", response_model=SeoInsightsResponse)
-async def seo_insights() -> SeoInsightsResponse:
-    return get_seo_insights_data()
+async def seo_insights(settings: Settings = Depends(get_settings)) -> SeoInsightsResponse:
+    return get_website_seo_data(settings)
 
 
 @router.get("/integrations", response_model=IntegrationsResponse)
@@ -93,6 +107,16 @@ async def integrations() -> IntegrationsResponse:
 @router.get("/reports", response_model=ReportsResponse)
 async def reports() -> ReportsResponse:
     return get_reports_data()
+
+
+@router.post("/reports/daily/sync", response_model=DailyReportSyncResponse)
+async def reports_daily_sync(settings: Settings = Depends(get_settings)) -> DailyReportSyncResponse:
+    try:
+        return await sync_daily_report(settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Tạo báo cáo ngày thất bại: {exc}") from exc
 
 
 @router.get("/settings/defaults", response_model=SettingsResponse)
@@ -119,4 +143,4 @@ async def google_website_sync(settings: Settings = Depends(get_settings)) -> Goo
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Google sync failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Đồng bộ Google thất bại: {exc}") from exc

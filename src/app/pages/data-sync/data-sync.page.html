@@ -1,11 +1,11 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Data ingestion</span>
-      <h2 class="fw-bold mb-3">Thu thap va dong bo du lieu tu nhieu tai khoan, nhieu page va nhieu website.</h2>
+      <span class="section-kicker">Tiếp nhận dữ liệu</span>
+      <h2 class="fw-bold mb-3">Thu thập và đồng bộ dữ liệu từ nhiều tài khoản, nhiều trang và nhiều website.</h2>
       <p class="card-copy mb-0">
-        Moi connector duoc thiet ke de lay post, video, likes, comments, shares, views, CTR va chi so website,
-        sau do day ve Google Sheets de theo doi va phan tich tap trung.
+        Mỗi kết nối được thiết kế để lấy bài viết, video, lượt thích, bình luận, chia sẻ, lượt xem, CTR và chỉ số website,
+        sau đó đẩy về Google Sheets để theo dõi và phân tích tập trung.
       </p>
     </section>
 
@@ -15,18 +15,18 @@
           <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
               <div class="card-title">{{ channel.name }}</div>
-              <div class="card-copy">{{ channel.accounts }} account / page groups</div>
+              <div class="card-copy">{{ channel.accounts }} cụm tài khoản / trang</div>
             </div>
             <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
           </div>
           <div class="d-flex justify-content-between mb-2">
-            <span class="muted-text">Last sync</span>
+            <span class="muted-text">Lần đồng bộ gần nhất</span>
             <strong>{{ channel.lastSync }}</strong>
           </div>
           <div class="progress mb-2">
             <div class="progress-bar bg-app-accent" [style.width.%]="channel.healthScore"></div>
           </div>
-          <div class="muted-text">Do on dinh ket noi: {{ channel.healthScore }}%</div>
+          <div class="muted-text">Độ ổn định kết nối: {{ channel.healthScore }}%</div>
         </article>
       </div>
     </section>
@@ -36,22 +36,23 @@
         <article class="glass-card p-4">
           <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
             <div>
-              <div class="card-title">Website sync</div>
+              <div class="card-title">Đồng bộ website</div>
               <div class="card-copy">
-                Dong bo Google Analytics 4, Google Search Console va WordPress posts vao worksheet
-                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>.
+                Đồng bộ Google Analytics 4 và Google Search Console vào
+                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>, dong bo WordPress posts vao
+                <strong>{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</strong>.
               </div>
             </div>
 
             <div class="d-grid d-md-flex gap-2">
               <span class="status-chip" [ngClass]="googleStatus?.ready ? 'status-live' : 'status-warning'">
-                {{ googleStatus?.ready ? 'Ready' : 'Missing config' }}
+                {{ googleStatus?.ready ? 'Sẵn sàng' : 'Thiếu cấu hình' }}
               </span>
               <button class="btn btn-app px-4" (click)="syncGoogleWebsite()" [disabled]="isSyncing">
-                <span *ngIf="!isSyncing">Sync website</span>
+                <span *ngIf="!isSyncing">Đồng bộ website</span>
                 <span *ngIf="isSyncing" class="d-inline-flex align-items-center gap-2">
                   <span class="spinner-border spinner-border-sm"></span>
-                  Dang sync
+                  Đang đồng bộ
                 </span>
               </button>
             </div>
@@ -62,8 +63,8 @@
               <div class="soft-list-item h-100">
                 <span class="badge-dot"></span>
                 <div>
-                  <strong>WordPress sites</strong>
-                  <div class="muted-text">{{ googleStatus?.wordpressSitesCount || 0 }} sites configured</div>
+                  <strong>Website WordPress</strong>
+                  <div class="muted-text">{{ googleStatus?.wordpressSitesCount || 0 }} site đã cấu hình</div>
                 </div>
               </div>
             </div>
@@ -71,8 +72,8 @@
               <div class="soft-list-item h-100">
                 <span class="badge-dot"></span>
                 <div>
-                  <strong>Spreadsheet</strong>
-                  <div class="muted-text">{{ googleStatus?.spreadsheetId || 'Chua co ID' }}</div>
+                  <strong>Google Sheet</strong>
+                  <div class="muted-text">{{ googleStatus?.spreadsheetId || 'Chưa có ID' }}</div>
                 </div>
               </div>
             </div>
@@ -80,8 +81,8 @@
               <div class="soft-list-item h-100">
                 <span class="badge-dot"></span>
                 <div>
-                  <strong>GA4 property</strong>
-                  <div class="muted-text">{{ googleStatus?.analyticsPropertyId || 'Chua co property' }}</div>
+                  <strong>Thuộc tính GA4</strong>
+                  <div class="muted-text">{{ googleStatus?.analyticsPropertyId || 'Chưa có thuộc tính' }}</div>
                 </div>
               </div>
             </div>
@@ -90,7 +91,16 @@
                 <span class="badge-dot"></span>
                 <div>
                   <strong>Search Console</strong>
-                  <div class="muted-text">{{ googleStatus?.searchConsoleSiteUrl || 'Chua co site URL' }}</div>
+                  <div class="muted-text">{{ googleStatus?.searchConsoleSiteUrl || 'Chưa có URL site' }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="soft-list-item h-100">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Trang tính bài viết</strong>
+                  <div class="muted-text">{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</div>
                 </div>
               </div>
             </div>
@@ -98,7 +108,7 @@
 
           <div class="alert alert-danger mt-3 mb-0" *ngIf="syncError">{{ syncError }}</div>
           <div class="alert alert-success mt-3 mb-0" *ngIf="syncResult">
-            {{ syncResult.message }} GA rows: {{ syncResult.analyticsRows }}, GSC rows: {{ syncResult.searchConsoleRows }}, WordPress posts: {{ syncResult.wordpressPosts }}.
+            {{ syncResult.message }} Số trang GA: {{ syncResult.analyticsRows }}, số trang GSC: {{ syncResult.searchConsoleRows }}, số bài WordPress: {{ syncResult.wordpressPosts }}.
           </div>
 
           <div class="soft-list mt-3" *ngIf="googleStatus?.warnings?.length">
@@ -111,25 +121,63 @@
       </div>
     </section>
 
+    <section class="row g-4 mb-4">
+      <div class="col-12">
+        <article class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <div class="card-title">Theo dõi site WordPress</div>
+              <div class="card-copy">
+                Hai site lỗi tạm thời chuyển sang theo dõi ngoài giao diện. Site đồng bộ ổn định vẫn tiếp tục đẩy dữ liệu vào sheet.
+              </div>
+            </div>
+            <span class="pill">Chế độ xử lý giao diện</span>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6 col-xl-4" *ngFor="let site of wordpressSites">
+              <article class="soft-site-card h-100">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                  <div>
+                    <div class="fw-bold">{{ site.name }}</div>
+                    <div class="muted-text small">
+                      {{ site.mode === 'auto' ? 'Luồng tự động' : 'Theo dõi thủ công' }}
+                    </div>
+                  </div>
+                  <span class="status-chip" [ngClass]="getWordPressSiteState(site.name).chipClass">
+                    {{ getWordPressSiteState(site.name).label }}
+                  </span>
+                </div>
+
+                <div class="muted-text">
+                  {{ getWordPressSiteState(site.name).detail }}
+                </div>
+              </article>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section class="row g-4">
       <div class="col-xl-8">
         <article class="glass-card table-surface p-3 p-lg-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <div class="card-title">Ban do tai khoan quan ly</div>
-              <div class="card-copy">He thong ho tro gom nhom theo account, page, property va website.</div>
+              <div class="card-title">Bản đồ tài khoản quản lý</div>
+              <div class="card-copy">Hệ thống hỗ trợ gom nhóm theo tài khoản, trang, thuộc tính và website.</div>
             </div>
-            <span class="pill">Google Sheets ready</span>
+            <span class="pill">Google Sheets sẵn sàng</span>
           </div>
 
           <div class="table-responsive">
             <table class="table align-middle">
               <thead>
                 <tr>
-                  <th>Platform</th>
-                  <th>Account cluster</th>
-                  <th>Assets</th>
-                  <th>Destination</th>
+                  <th>Nền tảng</th>
+                  <th>Cụm tài khoản</th>
+                  <th>Tài nguyên</th>
+                  <th>Đích lưu trữ</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,27 +195,27 @@
 
       <div class="col-xl-4">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Pipeline luu tru</div>
+          <div class="card-title mb-3">Luồng lưu trữ</div>
           <div class="soft-list">
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Raw sheet</strong>
-                <div class="muted-text">Luu metric goc theo platform, page va post ID.</div>
+                <strong>Sheet dữ liệu gốc</strong>
+                <div class="muted-text">Sheet website lưu chỉ số Google theo từng trang và từng nguồn.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Normalized sheet</strong>
-                <div class="muted-text">Chuan hoa fields de dashboard va AI co the doc thong nhat.</div>
+                <strong>Sheet chuẩn hóa</strong>
+                <div class="muted-text">Sheet Post_web lưu bài viết WordPress và ánh xạ chỉ số GA4, GSC.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Insight sheet</strong>
-                <div class="muted-text">Tong hop KPI, anomalies va de xuat chien luoc hang ngay.</div>
+                <strong>Sheet thông tin chi tiết</strong>
+                <div class="muted-text">Bảng điều khiển và AI sẽ đọc lại 2 sheet này để tổng hợp KPI và thông tin chi tiết.</div>
               </div>
             </div>
           </div>

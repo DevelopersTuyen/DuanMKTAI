@@ -1,10 +1,10 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">API integration map</span>
-      <h2 class="fw-bold mb-3">Ket noi social APIs, GA4, GSC, Google Sheets va workflow tools.</h2>
+      <span class="section-kicker">Bản đồ tích hợp API</span>
+      <h2 class="fw-bold mb-3">Kết nối API mạng xã hội, GA4, GSC, Google Sheets và công cụ quy trình.</h2>
       <p class="card-copy mb-0">
-        Day la lop tich hop de lay du lieu chinh xac, tu dong hoa quy trinh marketing va dong bo bao cao.
+        Đây là lớp tích hợp để lấy dữ liệu chính xác, tự động hóa quy trình marketing và đồng bộ báo cáo.
       </p>
     </section>
 
@@ -16,15 +16,15 @@
             <span class="status-chip" [ngClass]="integration.statusClass">{{ integration.status }}</span>
           </div>
           <div class="mb-2">
-            <div class="muted-text small">Managed assets</div>
+            <div class="muted-text small">Tài nguyên quản lý</div>
             <strong>{{ integration.accounts }}</strong>
           </div>
           <div class="mb-2">
-            <div class="muted-text small">Scope</div>
+            <div class="muted-text small">Phạm vi</div>
             <span>{{ integration.scope }}</span>
           </div>
           <div>
-            <div class="muted-text small">Last sync</div>
+            <div class="muted-text small">Lần đồng bộ gần nhất</div>
             <strong>{{ integration.lastSync }}</strong>
           </div>
         </article>

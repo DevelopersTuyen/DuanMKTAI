@@ -1,10 +1,10 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Campaign tracker</span>
-      <h2 class="fw-bold mb-3">Theo doi hieu qua va du bao ket qua cho cac campaign dang chay.</h2>
+      <span class="section-kicker">Theo dõi chiến dịch</span>
+      <h2 class="fw-bold mb-3">Theo dõi hiệu quả và dự báo kết quả cho các chiến dịch đang chạy.</h2>
       <p class="card-copy mb-0">
-        He thong tong hop chi phi, reach, du bao SQL va next move de marketer co the dieu chinh nhanh.
+        Hệ thống tổng hợp chi phí, lượt tiếp cận, dự báo SQL và bước tiếp theo để marketer có thể điều chỉnh nhanh.
       </p>
     </section>
 
@@ -14,18 +14,18 @@
           <div class="card-title mb-2">{{ campaign.name }}</div>
           <div class="muted-text mb-3">{{ campaign.objective }}</div>
           <div class="d-flex justify-content-between mb-2">
-            <span class="muted-text">Spend</span>
+            <span class="muted-text">Chi phí</span>
             <strong>{{ campaign.spend }}</strong>
           </div>
           <div class="d-flex justify-content-between mb-2">
-            <span class="muted-text">Reach</span>
+            <span class="muted-text">Lượt tiếp cận</span>
             <strong>{{ campaign.reach }}</strong>
           </div>
           <div class="soft-list-item my-3">
             <span class="badge-dot"></span>
             <div class="muted-text">{{ campaign.forecast }}</div>
           </div>
-          <div class="fw-semibold">Next move</div>
+          <div class="fw-semibold">Bước tiếp theo</div>
           <div class="muted-text">{{ campaign.nextMove }}</div>
         </article>
       </div>

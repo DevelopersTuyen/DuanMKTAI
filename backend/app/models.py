@@ -16,6 +16,33 @@ class ContentGenerateResponse(BaseModel):
     source: Literal["ollama", "fallback"]
 
 
+class LocalAiChannelStatus(BaseModel):
+    name: str
+    status: str
+    detail: str
+    rows: int
+
+
+class LocalAiAnalysisResponse(BaseModel):
+    summary: str
+    analysis: str
+    model: str
+    source: Literal["ollama", "fallback"]
+    generatedAt: str
+    channels: list[LocalAiChannelStatus]
+
+
+class DailyReportSyncResponse(BaseModel):
+    status: Literal["success"]
+    message: str
+    worksheet: str
+    reportDate: str
+    updatedRange: str
+    model: str
+    source: Literal["ollama", "fallback"]
+    generatedAt: str
+
+
 class DashboardKpi(BaseModel):
     label: str
     value: str
@@ -183,6 +210,7 @@ class GoogleWebsiteStatusResponse(BaseModel):
     wordpressSitesCount: int
     spreadsheetId: str
     worksheet: str
+    wordpressWorksheet: str
     analyticsPropertyId: str | None
     searchConsoleSiteUrl: str | None
     message: str
@@ -194,6 +222,7 @@ class GoogleWebsiteSyncResponse(BaseModel):
     message: str
     spreadsheetId: str
     worksheet: str
+    wordpressWorksheet: str
     wordpressPosts: int
     analyticsRows: int
     searchConsoleRows: int

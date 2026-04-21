@@ -1,44 +1,44 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">AI content studio</span>
-      <h2 class="fw-bold mb-3">Tao bai viet marketing tu du lieu hieu suat va brief campaign.</h2>
+      <span class="section-kicker">Xưởng nội dung AI</span>
+      <h2 class="fw-bold mb-3">Tạo bài viết marketing từ dữ liệu hiệu suất và mô tả chiến dịch.</h2>
       <p class="card-copy mb-0">
-        Form nay ket noi den Ollama voi model `qwen3:8b`, phu hop de sinh copy, hook, CTA va goi y visual ngay trong dashboard.
+        Biểu mẫu này kết nối đến Ollama với mô hình `qwen3:8b`, phù hợp để tạo nội dung, hook, CTA và gợi ý hình ảnh ngay trong bảng điều khiển.
       </p>
     </section>
 
     <section class="row g-4">
       <div class="col-xl-5">
         <article class="glass-card form-card p-4 h-100">
-          <div class="card-title mb-3">Generate brief</div>
+          <div class="card-title mb-3">Tạo nội dung từ mô tả</div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Platform</label>
+            <label class="form-label fw-semibold">Nền tảng</label>
             <input class="form-control" [(ngModel)]="prompt.platform" placeholder="Facebook, LinkedIn, TikTok..." />
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Goal</label>
-            <input class="form-control" [(ngModel)]="prompt.goal" placeholder="Tang reach, SQL, CTR..." />
+            <label class="form-label fw-semibold">Mục tiêu</label>
+            <input class="form-control" [(ngModel)]="prompt.goal" placeholder="Tăng lượt tiếp cận, SQL, CTR..." />
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Tone</label>
-            <input class="form-control" [(ngModel)]="prompt.tone" placeholder="Bold, data-driven, playful..." />
+            <label class="form-label fw-semibold">Giọng điệu</label>
+            <input class="form-control" [(ngModel)]="prompt.tone" placeholder="Mạnh mẽ, dựa trên dữ liệu, trẻ trung..." />
           </div>
 
           <div class="mb-4">
-            <label class="form-label fw-semibold">Brief</label>
+            <label class="form-label fw-semibold">Mô tả</label>
             <textarea class="form-control" rows="6" [(ngModel)]="prompt.brief"></textarea>
           </div>
 
           <div class="d-grid gap-2">
             <button class="btn btn-app" (click)="generateContent()" [disabled]="isGenerating">
-              <span *ngIf="!isGenerating">Generate voi Ollama</span>
+              <span *ngIf="!isGenerating">Tạo nội dung với Ollama</span>
               <span *ngIf="isGenerating" class="d-inline-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm"></span>
-                Dang sinh noi dung
+                Đang tạo nội dung
               </span>
             </button>
           </div>
@@ -51,16 +51,16 @@
         <article class="glass-card p-4 mb-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <div class="card-title">Generated output</div>
-              <div class="card-copy">Preview copy de dua vao workflow duyet va scheduling.</div>
+              <div class="card-title">Nội dung được tạo</div>
+              <div class="card-copy">Xem trước nội dung để đưa vào quy trình duyệt và lên lịch.</div>
             </div>
-            <span class="pill">Model: qwen3:8b</span>
+            <span class="pill">Mô hình: qwen3:8b</span>
           </div>
           <pre class="generated-preview mb-0">{{ generatedCopy }}</pre>
         </article>
 
         <article class="glass-card p-4">
-          <div class="card-title mb-3">Auto-suggest content angles</div>
+          <div class="card-title mb-3">Gợi ý góc triển khai nội dung</div>
           <div class="row g-3">
             <div class="col-md-6" *ngFor="let idea of ideas">
               <div class="soft-list-item h-100">
@@ -68,7 +68,7 @@
                 <div>
                   <div class="fw-bold mb-1">{{ idea.title }}</div>
                   <div class="muted-text mb-2">{{ idea.angle }}</div>
-                  <button class="btn btn-sm btn-app-secondary" (click)="applyIdea(idea)">Nap vao form</button>
+                  <button class="btn btn-sm btn-app-secondary" (click)="applyIdea(idea)">Nạp vào biểu mẫu</button>
                 </div>
               </div>
             </div>

@@ -45,7 +45,7 @@ export class SettingsPage implements OnInit {
   }
 
   saveSettings(): void {
-    this.saveMessage = 'Da cap nhat cau hinh local tren frontend. Neu muon luu that, hay them endpoint backend cho settings.';
+    this.saveMessage = 'Đã cập nhật cấu hình cục bộ trên frontend. Nếu muốn lưu thật, hãy thêm endpoint backend cho phần cài đặt.';
   }
 
 }

@@ -28,6 +28,22 @@ export interface Recommendation {
   priority: 'High' | 'Medium';
 }
 
+export interface LocalAiChannelStatus {
+  name: string;
+  status: string;
+  detail: string;
+  rows: number;
+}
+
+export interface LocalAiAnalysisResponse {
+  summary: string;
+  analysis: string;
+  model: string;
+  source: 'ollama' | 'fallback';
+  generatedAt: string;
+  channels: LocalAiChannelStatus[];
+}
+
 export interface SyncChannel {
   name: string;
   accounts: number;
@@ -171,6 +187,7 @@ export interface GoogleWebsiteStatusResponse {
   wordpressSitesCount: number;
   spreadsheetId: string;
   worksheet: string;
+  wordpressWorksheet: string;
   analyticsPropertyId: string | null;
   searchConsoleSiteUrl: string | null;
   message: string;
@@ -182,6 +199,7 @@ export interface GoogleWebsiteSyncResponse {
   message: string;
   spreadsheetId: string;
   worksheet: string;
+  wordpressWorksheet: string;
   wordpressPosts: number;
   analyticsRows: number;
   searchConsoleRows: number;
@@ -198,6 +216,10 @@ export class MarketingData {
 
   getDashboard(): Observable<DashboardResponse> {
     return this.http.get<DashboardResponse>(`${this.apiBaseUrl}/dashboard`);
+  }
+
+  getLocalAiAnalysis(): Observable<LocalAiAnalysisResponse> {
+    return this.http.get<LocalAiAnalysisResponse>(`${this.apiBaseUrl}/ai/local-analysis`);
   }
 
   getDataSync(): Observable<DataSyncResponse> {
