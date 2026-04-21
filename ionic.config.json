@@ -1,0 +1,7 @@
+{
+  "name": "marketing-ai-hub",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
