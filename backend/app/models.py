@@ -16,6 +16,59 @@ class ContentGenerateResponse(BaseModel):
     source: Literal["ollama", "fallback"]
 
 
+class AiQueueStatusResponse(BaseModel):
+    waitingJobs: int
+    currentJob: str | None
+    running: bool
+    lastCompletedAt: str | None
+    lastError: str | None
+
+
+class PublishTargetResult(BaseModel):
+    platform: str
+    status: str
+    detail: str
+
+
+class ContentDraft(BaseModel):
+    draftId: str
+    createdAt: str
+    updatedAt: str
+    status: str
+    requestedPlatforms: str
+    goal: str
+    tone: str
+    brief: str
+    generatedContent: str
+    markdownPath: str | None = None
+    markdownContent: str = ""
+    model: str
+    outlineModel: str | None = None
+    imageModel: str | None = None
+    seoModel: str | None = None
+    source: Literal["ollama", "fallback"]
+    worksheet: str
+    confirmedAt: str | None = None
+    publishedAt: str | None = None
+    dispatchStatus: str = "draft"
+    dispatchResults: list[PublishTargetResult] = Field(default_factory=list)
+
+
+class ContentDraftGenerateResponse(BaseModel):
+    message: str
+    draft: ContentDraft
+
+
+class ContentDraftConfirmResponse(BaseModel):
+    message: str
+    draft: ContentDraft
+
+
+class ContentDraftListResponse(BaseModel):
+    worksheet: str
+    drafts: list[ContentDraft]
+
+
 class LocalAiChannelStatus(BaseModel):
     name: str
     status: str
@@ -213,6 +266,44 @@ class SettingsResponse(BaseModel):
     spreadsheetId: str
     worksheet: str
     syncIntervalMinutes: int
+    autoSync: bool
+    autoRecommend: bool
+    autoSchedule: bool
+
+
+class SettingsUpdateRequest(BaseModel):
+    apiBaseUrl: str = Field(min_length=1)
+    ollamaBaseUrl: str = Field(min_length=1)
+    ollamaModel: str = Field(min_length=1)
+    spreadsheetId: str = Field(min_length=1)
+    worksheet: str = Field(min_length=1)
+    syncIntervalMinutes: int = Field(ge=1, le=1440)
+    autoSync: bool = True
+    autoRecommend: bool = True
+    autoSchedule: bool = False
+
+
+class SettingsSaveResponse(BaseModel):
+    status: Literal["success"]
+    message: str
+    settings: SettingsResponse
+
+
+class AutomationJobStatus(BaseModel):
+    name: str
+    enabled: bool
+    lastRunAt: str | None
+    lastSuccessAt: str | None
+    lastStatus: str
+    lastMessage: str
+
+
+class AutomationStatusResponse(BaseModel):
+    running: bool
+    pollSeconds: int
+    effectiveSettings: SettingsResponse
+    lastConfigReloadAt: str | None
+    jobs: list[AutomationJobStatus]
 
 
 class GoogleWebsiteStatusResponse(BaseModel):

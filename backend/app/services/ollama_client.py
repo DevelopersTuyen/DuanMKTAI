@@ -1,9 +1,32 @@
 from __future__ import annotations
 
+import asyncio
+from datetime import UTC, datetime
+
 import httpx
 
 from app.core.config import Settings
-from app.models import ContentGenerateResponse, MarketingPromptRequest
+from app.models import AiQueueStatusResponse, ContentGenerateResponse, MarketingPromptRequest
+
+_OLLAMA_LOCK = asyncio.Lock()
+_QUEUE_WAITING = 0
+_CURRENT_JOB: str | None = None
+_LAST_COMPLETED_AT: str | None = None
+_LAST_ERROR: str | None = None
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def get_ollama_queue_status() -> AiQueueStatusResponse:
+    return AiQueueStatusResponse(
+        waitingJobs=max(_QUEUE_WAITING, 0),
+        currentJob=_CURRENT_JOB,
+        running=_CURRENT_JOB is not None,
+        lastCompletedAt=_LAST_COMPLETED_AT,
+        lastError=_LAST_ERROR,
+    )
 
 
 async def get_available_ollama_models(settings: Settings) -> list[str]:
@@ -17,7 +40,7 @@ async def get_available_ollama_models(settings: Settings) -> list[str]:
         return []
 
 
-def build_model_candidates(settings: Settings, available_models: list[str]) -> list[str]:
+def build_default_model_candidates(settings: Settings, available_models: list[str]) -> list[str]:
     preferred_candidates = [
         settings.ollama_model,
         "qwen2.5:3b",
@@ -30,7 +53,7 @@ def build_model_candidates(settings: Settings, available_models: list[str]) -> l
     candidates: list[str] = []
 
     for model_name in preferred_candidates:
-        if model_name and model_name in available_models and model_name not in candidates:
+        if model_name and model_name not in candidates:
             candidates.append(model_name)
 
     for model_name in available_models:
@@ -40,28 +63,82 @@ def build_model_candidates(settings: Settings, available_models: list[str]) -> l
     return candidates
 
 
-async def generate_text_with_ollama(prompt: str, settings: Settings) -> tuple[str, str, str]:
-    available_models = await get_available_ollama_models(settings)
-    model_candidates = build_model_candidates(settings, available_models)
+def build_requested_model_candidates(
+    requested_model: str,
+    settings: Settings,
+    available_models: list[str],
+    fallback_candidates: list[str] | None = None,
+) -> list[str]:
+    candidates: list[str] = []
+    ordered_models = [requested_model, *(fallback_candidates or []), *build_default_model_candidates(settings, available_models)]
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        for model_name in model_candidates:
-            try:
-                payload = {
-                    "model": model_name,
-                    "prompt": prompt,
-                    "stream": False,
-                }
-                response = await client.post(f"{settings.ollama_base_url}/api/generate", json=payload)
-                response.raise_for_status()
-                data = response.json()
-                content = str(data.get("response", "")).strip()
-                if content:
-                    return content, "ollama", model_name
-            except (httpx.HTTPError, ValueError):
-                continue
+    for model_name in ordered_models:
+        normalized = str(model_name or "").strip()
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
 
-    return "", "fallback", settings.ollama_model
+    for model_name in available_models:
+        if model_name == requested_model and model_name not in candidates:
+            candidates.append(model_name)
+
+    return candidates
+
+
+async def generate_text_with_model(
+    prompt: str,
+    settings: Settings,
+    requested_model: str,
+    job_name: str = "AI local",
+    fallback_candidates: list[str] | None = None,
+) -> tuple[str, str, str]:
+    global _QUEUE_WAITING, _CURRENT_JOB, _LAST_COMPLETED_AT, _LAST_ERROR
+
+    _QUEUE_WAITING += 1
+
+    async with _OLLAMA_LOCK:
+        _QUEUE_WAITING = max(_QUEUE_WAITING - 1, 0)
+        _CURRENT_JOB = job_name
+        available_models = await get_available_ollama_models(settings)
+        model_candidates = build_requested_model_candidates(
+            requested_model=requested_model,
+            settings=settings,
+            available_models=available_models,
+            fallback_candidates=fallback_candidates,
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                for model_name in model_candidates:
+                    try:
+                        payload = {
+                            "model": model_name,
+                            "prompt": prompt,
+                            "stream": False,
+                        }
+                        response = await client.post(f"{settings.ollama_base_url}/api/generate", json=payload)
+                        response.raise_for_status()
+                        data = response.json()
+                        content = str(data.get("response", "")).strip()
+                        if content:
+                            _LAST_ERROR = None
+                            _LAST_COMPLETED_AT = _utc_now_iso()
+                            return content, "ollama", model_name
+                    except (httpx.HTTPError, ValueError) as exc:
+                        _LAST_ERROR = str(exc)
+                        continue
+        finally:
+            _CURRENT_JOB = None
+
+    return "", "fallback", requested_model
+
+
+async def generate_text_with_ollama(prompt: str, settings: Settings, job_name: str = "AI local") -> tuple[str, str, str]:
+    return await generate_text_with_model(
+        prompt=prompt,
+        settings=settings,
+        requested_model=settings.ollama_model,
+        job_name=job_name,
+    )
 
 
 def build_prompt(request: MarketingPromptRequest) -> str:
@@ -99,7 +176,11 @@ def build_fallback_response(request: MarketingPromptRequest, model: str) -> Cont
 
 
 async def generate_marketing_copy(request: MarketingPromptRequest, settings: Settings) -> ContentGenerateResponse:
-    content, source, used_model = await generate_text_with_ollama(build_prompt(request), settings)
+    content, source, used_model = await generate_text_with_ollama(
+        build_prompt(request),
+        settings,
+        job_name="Tạo bài viết marketing",
+    )
     if content and source == "ollama":
         return ContentGenerateResponse(response=content, model=used_model, source="ollama")
 

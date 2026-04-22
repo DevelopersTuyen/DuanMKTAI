@@ -1,9 +1,12 @@
-import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
 
-import { ContentIdea, MarketingData } from '../../core/services/marketing-data';
-import { MarketingPromptRequest, Ollama } from '../../core/services/ollama';
+import {
+  AiQueueStatusResponse,
+  ContentDraft,
+  ContentIdea,
+  MarketingData,
+} from '../../core/services/marketing-data';
 
 @Component({
   selector: 'app-content-studio',
@@ -11,47 +14,123 @@ import { MarketingPromptRequest, Ollama } from '../../core/services/ollama';
   styleUrls: ['./content-studio.page.scss'],
   standalone: false,
 })
-export class ContentStudioPage implements OnDestroy, OnInit {
+export class ContentStudioPage implements OnInit {
   private readonly marketingData = inject(MarketingData);
-  private readonly ollama = inject(Ollama);
   private readonly destroyRef = inject(DestroyRef);
-  private generationSubscription?: Subscription;
 
   ideas: ContentIdea[] = [];
+  drafts: ContentDraft[] = [];
+  activeDraft: ContentDraft | null = null;
+  aiQueueStatus: AiQueueStatusResponse | null = null;
 
-  prompt: MarketingPromptRequest = {
-    platform: 'Facebook + LinkedIn',
+  prompt = {
+    platform: 'Facebook, LinkedIn',
     goal: 'Tăng lead chất lượng',
     tone: 'Tự tin, thực tế, dựa trên dữ liệu',
-    brief: 'Chiến dịch nhắm tới doanh nghiệp cần bảng điều khiển tổng hợp social, SEO và nội dung AI.',
+    brief: 'Bài viết giới thiệu giải pháp dashboard marketing AI cho doanh nghiệp, nhấn vào hiệu quả SEO và khả năng quản trị đa kênh.',
   };
 
-  generatedCopy = 'Nội dung do Ollama tạo sẽ hiển thị ở đây sau khi bấm Tạo nội dung.';
+  generatedCopy = 'Bài viết SEO hoàn chỉnh sẽ hiển thị ở đây sau khi pipeline 3 bước chạy xong.';
+  generationMessage = '';
   generationError = '';
+  confirmMessage = '';
+  confirmError = '';
   isGenerating = false;
+  isConfirming = false;
 
   ngOnInit(): void {
-    this.marketingData.getContent()
+    this.loadIdeas();
+    this.loadDrafts();
+    this.loadQueueStatus();
+  }
+
+  loadIdeas(): void {
+    this.marketingData
+      .getContent()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.ideas = response.ideas;
       });
   }
 
+  loadDrafts(): void {
+    this.marketingData
+      .getContentDrafts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => {
+        this.drafts = response.drafts;
+        if (!this.activeDraft && this.drafts.length > 0) {
+          this.selectDraft(this.drafts[0]);
+        }
+      });
+  }
+
+  loadQueueStatus(): void {
+    this.marketingData
+      .getAiQueueStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.aiQueueStatus = response;
+        },
+        error: () => {
+          this.aiQueueStatus = null;
+        },
+      });
+  }
+
   generateContent(): void {
     this.isGenerating = true;
+    this.generationMessage = '';
     this.generationError = '';
-    this.generationSubscription?.unsubscribe();
-    this.generationSubscription = this.ollama.generateMarketingCopy(this.prompt).subscribe({
-      next: (response) => {
-        this.generatedCopy = response;
-        this.isGenerating = false;
-      },
-      error: () => {
-        this.generationError = 'Không thể kết nối tới Ollama. Hệ thống đã chuyển sang mẫu nội dung ngoại tuyến.';
-        this.isGenerating = false;
-      },
-    });
+    this.confirmMessage = '';
+    this.confirmError = '';
+
+    this.marketingData
+      .generateContentDraft(this.prompt)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.activeDraft = response.draft;
+          this.generatedCopy = response.draft.generatedContent;
+          this.generationMessage = response.message;
+          this.isGenerating = false;
+          this.loadDrafts();
+          this.loadQueueStatus();
+        },
+        error: (error) => {
+          this.generationError = error?.error?.detail || 'Không thể tạo pipeline bài viết bằng AI local.';
+          this.isGenerating = false;
+          this.loadQueueStatus();
+        },
+      });
+  }
+
+  confirmDraft(): void {
+    if (!this.activeDraft) {
+      return;
+    }
+
+    this.isConfirming = true;
+    this.confirmMessage = '';
+    this.confirmError = '';
+
+    this.marketingData
+      .confirmContentDraft(this.activeDraft.draftId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.activeDraft = response.draft;
+          this.generatedCopy = response.draft.generatedContent;
+          this.confirmMessage = response.message;
+          this.isConfirming = false;
+          this.loadDrafts();
+        },
+        error: (error) => {
+          this.confirmError = error?.error?.detail || 'Không thể xác nhận bản nháp.';
+          this.isConfirming = false;
+        },
+      });
   }
 
   applyIdea(idea: ContentIdea): void {
@@ -59,12 +138,29 @@ export class ContentStudioPage implements OnDestroy, OnInit {
       platform: idea.channel,
       goal: 'Tăng tương tác và ý định chuyển đổi',
       tone: 'Sắc nét, hữu ích, mang tính hướng dẫn',
-      brief: `${idea.title}. Angle: ${idea.angle}.`,
+      brief: `${idea.title}. Góc triển khai: ${idea.angle}.`,
     };
   }
 
-  ngOnDestroy(): void {
-    this.generationSubscription?.unsubscribe();
+  selectDraft(draft: ContentDraft): void {
+    this.activeDraft = draft;
+    this.generatedCopy = draft.generatedContent;
+    this.generationMessage = '';
+    this.generationError = '';
+    this.confirmMessage = '';
+    this.confirmError = '';
   }
 
+  formatDate(value: string | null): string {
+    if (!value) {
+      return 'Chưa có';
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    return parsed.toLocaleString('vi-VN');
+  }
 }

@@ -2,64 +2,168 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <span class="section-kicker">Xưởng nội dung AI</span>
-      <h2 class="fw-bold mb-3">Tạo bài viết marketing từ dữ liệu hiệu suất và mô tả chiến dịch.</h2>
+      <h2 class="fw-bold mb-3">Pipeline 3 bước qua Markdown: dàn bài, ảnh, rồi bài SEO hoàn chỉnh.</h2>
       <p class="card-copy mb-0">
-        Biểu mẫu này kết nối đến Ollama với mô hình `qwen3:8b`, phù hợp để tạo nội dung, hook, CTA và gợi ý hình ảnh ngay trong bảng điều khiển.
+        Hệ thống hiện dùng tuần tự <strong>llama3.2:3b</strong> để tạo dàn bài Markdown, <strong>llava</strong> để bổ sung
+        caption và alt-text cho các ảnh tham chiếu trong Markdown, rồi <strong>qwen2.5:3b</strong> để viết bài SEO hoàn chỉnh
+        từ chính file Markdown đã cập nhật. Google Sheet chỉ nhận bản thành phẩm cuối cùng, không lưu dàn ý hay pipeline Markdown.
       </p>
     </section>
 
+    <section class="glass-card p-4 mb-4" *ngIf="aiQueueStatus as queue">
+      <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+        <div>
+          <div class="card-title mb-1">Trạng thái hàng đợi AI local</div>
+          <div class="muted-text">Mọi bước AI local được xử lý tuần tự để tránh nghẽn hoặc lỗi Ollama.</div>
+        </div>
+        <button class="btn btn-outline-light align-self-start" type="button" (click)="loadQueueStatus()">
+          Làm mới
+        </button>
+      </div>
+
+      <div class="row g-3 mt-1">
+        <div class="col-md-3">
+          <div class="soft-panel">
+            <div class="small muted-text">Job đang chờ</div>
+            <div class="fw-semibold">{{ queue.waitingJobs }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="soft-panel">
+            <div class="small muted-text">Job đang chạy</div>
+            <div class="fw-semibold">{{ queue.currentJob || 'Không có' }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="soft-panel">
+            <div class="small muted-text">Lần hoàn tất gần nhất</div>
+            <div class="fw-semibold">{{ formatDate(queue.lastCompletedAt) }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="soft-panel">
+            <div class="small muted-text">Lỗi gần nhất</div>
+            <div class="fw-semibold text-break">{{ queue.lastError || 'Không có' }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="row g-4">
-      <div class="col-xl-5">
+      <div class="col-xl-4">
         <article class="glass-card form-card p-4 h-100">
-          <div class="card-title mb-3">Tạo nội dung từ mô tả</div>
+          <div class="card-title mb-3">Tạo pipeline bài viết</div>
+
+          <div class="pipeline-list mb-4">
+            <div class="pipeline-item">
+              <strong>Bước 1</strong>
+              <div class="muted-text">`llama3.2:3b` tạo dàn bài bài viết ở định dạng Markdown.</div>
+            </div>
+            <div class="pipeline-item">
+              <strong>Bước 2</strong>
+              <div class="muted-text">`llava` đọc mô tả ảnh trong Markdown để tạo caption và alt-text.</div>
+            </div>
+            <div class="pipeline-item">
+              <strong>Bước 3</strong>
+              <div class="muted-text">`qwen2.5:3b` dùng file Markdown đã cập nhật để viết bài SEO hoàn chỉnh.</div>
+            </div>
+          </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Nền tảng</label>
+            <label class="form-label fw-semibold">Nền tảng đích</label>
             <input class="form-control" [(ngModel)]="prompt.platform" placeholder="Facebook, LinkedIn, TikTok..." />
           </div>
 
           <div class="mb-3">
             <label class="form-label fw-semibold">Mục tiêu</label>
-            <input class="form-control" [(ngModel)]="prompt.goal" placeholder="Tăng lượt tiếp cận, SQL, CTR..." />
+            <input class="form-control" [(ngModel)]="prompt.goal" placeholder="Tăng lead, CTR, traffic..." />
           </div>
 
           <div class="mb-3">
             <label class="form-label fw-semibold">Giọng điệu</label>
-            <input class="form-control" [(ngModel)]="prompt.tone" placeholder="Mạnh mẽ, dựa trên dữ liệu, trẻ trung..." />
+            <input class="form-control" [(ngModel)]="prompt.tone" placeholder="Tin cậy, sắc nét, hướng dẫn..." />
           </div>
 
           <div class="mb-4">
-            <label class="form-label fw-semibold">Mô tả</label>
-            <textarea class="form-control" rows="6" [(ngModel)]="prompt.brief"></textarea>
+            <label class="form-label fw-semibold">Mô tả yêu cầu</label>
+            <textarea class="form-control" rows="7" [(ngModel)]="prompt.brief"></textarea>
           </div>
 
           <div class="d-grid gap-2">
             <button class="btn btn-app" (click)="generateContent()" [disabled]="isGenerating">
-              <span *ngIf="!isGenerating">Tạo nội dung với Ollama</span>
+              <span *ngIf="!isGenerating">Chạy pipeline và lưu bản nháp</span>
               <span *ngIf="isGenerating" class="d-inline-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm"></span>
-                Đang tạo nội dung
+                Đang tạo pipeline
               </span>
             </button>
           </div>
 
+          <div class="alert alert-success mt-3 mb-0" *ngIf="generationMessage">{{ generationMessage }}</div>
           <div class="alert alert-warning mt-3 mb-0" *ngIf="generationError">{{ generationError }}</div>
         </article>
       </div>
 
-      <div class="col-xl-7">
+      <div class="col-xl-8">
         <article class="glass-card p-4 mb-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <div class="card-title">Nội dung được tạo</div>
-              <div class="card-copy">Xem trước nội dung để đưa vào quy trình duyệt và lên lịch.</div>
+              <div class="card-title">Bản nháp đang chọn</div>
+              <div class="card-copy">Sheet `post_create_by_ai` chỉ lưu bài viết hoàn chỉnh; file Markdown pipeline chỉ giữ nội bộ trên backend.</div>
             </div>
-            <span class="pill">Mô hình: qwen3:8b</span>
+            <span class="pill" *ngIf="activeDraft">
+              {{ activeDraft.outlineModel }} -> {{ activeDraft.imageModel }} -> {{ activeDraft.seoModel }}
+            </span>
           </div>
-          <pre class="generated-preview mb-0">{{ generatedCopy }}</pre>
+
+          <div class="draft-meta mb-3" *ngIf="activeDraft">
+            <div><strong>Mã draft:</strong> {{ activeDraft.draftId }}</div>
+            <div><strong>Trạng thái:</strong> {{ activeDraft.status }} / {{ activeDraft.dispatchStatus }}</div>
+            <div><strong>Nền tảng:</strong> {{ activeDraft.requestedPlatforms }}</div>
+            <div><strong>Tạo lúc:</strong> {{ formatDate(activeDraft.createdAt) }}</div>
+            <div><strong>Xác nhận:</strong> {{ formatDate(activeDraft.confirmedAt) }}</div>
+            <div><strong>File Markdown:</strong> {{ activeDraft.markdownPath || 'Chưa có' }}</div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mb-3" *ngIf="activeDraft">
+            <button
+              class="btn btn-app"
+              type="button"
+              (click)="confirmDraft()"
+              [disabled]="isConfirming || activeDraft.status !== 'draft'">
+              {{ isConfirming ? 'Đang xác nhận...' : 'Xác nhận và chuyển sang bước xuất bản' }}
+            </button>
+          </div>
+
+          <div class="alert alert-success mb-3" *ngIf="confirmMessage">{{ confirmMessage }}</div>
+          <div class="alert alert-danger mb-3" *ngIf="confirmError">{{ confirmError }}</div>
+
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="card-title mb-2">Markdown pipeline nội bộ</div>
+              <pre class="generated-preview">{{ activeDraft?.markdownContent || 'Chưa có file Markdown.' }}</pre>
+            </div>
+            <div class="col-lg-6">
+              <div class="card-title mb-2">Bài viết SEO hoàn chỉnh</div>
+              <pre class="generated-preview">{{ generatedCopy }}</pre>
+            </div>
+          </div>
+
+          <div class="dispatch-results mt-3" *ngIf="activeDraft?.dispatchResults?.length">
+            <div class="card-title mb-2">Kết quả chuyển nền tảng</div>
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let result of activeDraft?.dispatchResults">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>{{ result.platform }}</strong>
+                  <div class="muted-text">{{ result.status }} - {{ result.detail }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </article>
 
-        <article class="glass-card p-4">
+        <article class="glass-card p-4 mb-4">
           <div class="card-title mb-3">Gợi ý góc triển khai nội dung</div>
           <div class="row g-3">
             <div class="col-md-6" *ngFor="let idea of ideas">
@@ -73,6 +177,33 @@
               </div>
             </div>
           </div>
+        </article>
+
+        <article class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <div class="card-title">Lịch sử bản nháp</div>
+              <div class="card-copy">Các bản nháp gần nhất được đọc trực tiếp từ sheet `post_create_by_ai`.</div>
+            </div>
+            <button class="btn btn-outline-light btn-sm" type="button" (click)="loadDrafts()">Làm mới</button>
+          </div>
+
+          <div class="draft-history" *ngIf="drafts.length; else emptyDrafts">
+            <button class="draft-item" type="button" *ngFor="let draft of drafts" (click)="selectDraft(draft)">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <div class="fw-semibold">{{ draft.requestedPlatforms }}</div>
+                  <div class="muted-text small">{{ draft.goal }}</div>
+                </div>
+                <span class="pill">{{ draft.status }}</span>
+              </div>
+              <div class="small mt-2">{{ formatDate(draft.createdAt) }}</div>
+            </button>
+          </div>
+
+          <ng-template #emptyDrafts>
+            <div class="muted-text">Chưa có bản nháp AI nào được lưu.</div>
+          </ng-template>
         </article>
       </div>
     </section>

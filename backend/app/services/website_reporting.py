@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from copy import deepcopy
+from datetime import UTC, datetime
 
 from app.core.config import Settings
 from app.models import (
@@ -18,6 +19,30 @@ from app.models import (
 )
 from app.services.google_website import get_sheet_values, load_service_account_credentials
 from app.services.mock_data import get_data_sync_data
+
+WEBSITE_DATASET_CACHE_TTL_SECONDS = 45
+_WEBSITE_DATASET_CACHE: dict[str, tuple[datetime, tuple[list[dict[str, str]], list[dict[str, str]]]]] = {}
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def build_dataset_cache_key(settings: Settings) -> str:
+    return ":".join(
+        [
+            settings.google_sheet_id,
+            settings.google_sheet_worksheet,
+            settings.wordpress_posts_worksheet,
+        ]
+    )
+
+
+def invalidate_website_dataset_cache(settings: Settings | None = None) -> None:
+    if settings is None:
+        _WEBSITE_DATASET_CACHE.clear()
+        return
+    _WEBSITE_DATASET_CACHE.pop(build_dataset_cache_key(settings), None)
 
 
 def to_float(value: str | None) -> float:
@@ -149,10 +174,18 @@ def build_recommendations(
 
 
 def load_website_dataset(settings: Settings) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    cache_key = build_dataset_cache_key(settings)
+    cached = _WEBSITE_DATASET_CACHE.get(cache_key)
+    if cached and (utc_now() - cached[0]).total_seconds() < WEBSITE_DATASET_CACHE_TTL_SECONDS:
+        website_records, post_records = cached[1]
+        return deepcopy(website_records), deepcopy(post_records)
+
     credentials = load_service_account_credentials(settings)
     website_rows = get_sheet_values(settings, credentials, settings.google_sheet_worksheet)
     post_rows = get_sheet_values(settings, credentials, settings.wordpress_posts_worksheet)
-    return parse_sheet_records(website_rows), parse_sheet_records(post_rows)
+    parsed_dataset = (parse_sheet_records(website_rows), parse_sheet_records(post_rows))
+    _WEBSITE_DATASET_CACHE[cache_key] = (utc_now(), deepcopy(parsed_dataset))
+    return deepcopy(parsed_dataset[0]), deepcopy(parsed_dataset[1])
 
 
 def get_website_dashboard_data(settings: Settings) -> DashboardResponse:

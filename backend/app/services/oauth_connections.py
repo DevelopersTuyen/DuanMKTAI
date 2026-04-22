@@ -16,7 +16,7 @@ from app.services.google_website import ensure_sheet_exists, get_sheet_values, l
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OAUTH_SHEET_HEADER = ["record_type", "record_key", "provider", "payload_json", "updated_at"]
-STORE_CACHE_TTL_SECONDS = 5
+STORE_CACHE_TTL_SECONDS = 60
 _STORE_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 
 
@@ -88,10 +88,18 @@ def cache_key(settings: Settings) -> str:
     return f"{settings.google_sheet_id}:{settings.oauth_keys_worksheet}"
 
 
-def normalize_sheet_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+def invalidate_store_cache(settings: Settings | None = None) -> None:
+    if settings is None:
+        _STORE_CACHE.clear()
+        return
+    _STORE_CACHE.pop(cache_key(settings), None)
+
+
+def normalize_store_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     normalized = payload or {}
     normalized.setdefault("connections", {})
     normalized.setdefault("states", {})
+    normalized.setdefault("systemSettings", {})
     return normalized
 
 
@@ -101,11 +109,11 @@ def read_sheet_store(settings: Settings) -> dict[str, Any]:
     ensure_sheet_exists(settings, credentials, worksheet)
     rows = get_sheet_values(settings, credentials, worksheet)
     if not rows:
-        return {"connections": {}, "states": {}}
+        return {"connections": {}, "states": {}, "systemSettings": {}}
 
     header = rows[0]
     index = {column: position for position, column in enumerate(header)}
-    payload: dict[str, Any] = {"connections": {}, "states": {}}
+    payload: dict[str, Any] = {"connections": {}, "states": {}, "systemSettings": {}}
 
     for row in rows[1:]:
         record_type = row[index["record_type"]] if index.get("record_type") is not None and index["record_type"] < len(row) else ""
@@ -121,6 +129,8 @@ def read_sheet_store(settings: Settings) -> dict[str, Any]:
             payload["connections"][record_key] = record_payload
         elif record_type == "state":
             payload["states"][record_key] = record_payload
+        elif record_type == "system_settings":
+            payload["systemSettings"] = record_payload
 
     return payload
 
@@ -153,6 +163,17 @@ def write_sheet_store(settings: Settings, payload: dict[str, Any]) -> None:
             ]
         )
 
+    if payload.get("systemSettings"):
+        rows.append(
+            [
+                "system_settings",
+                "defaults",
+                "system",
+                json.dumps(payload["systemSettings"], ensure_ascii=False),
+                iso_now(),
+            ]
+        )
+
     from googleapiclient.discovery import build
 
     service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
@@ -172,12 +193,12 @@ def write_sheet_store(settings: Settings, payload: dict[str, Any]) -> None:
 def read_file_store(settings: Settings) -> dict[str, Any]:
     path = storage_path(settings)
     if not path.exists():
-        return {"connections": {}, "states": {}}
+        return {"connections": {}, "states": {}, "systemSettings": {}}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return {"connections": {}, "states": {}}
-    return normalize_sheet_payload(payload)
+        return {"connections": {}, "states": {}, "systemSettings": {}}
+    return normalize_store_payload(payload)
 
 
 def write_file_store(settings: Settings, payload: dict[str, Any]) -> None:
@@ -190,15 +211,15 @@ def read_store(settings: Settings) -> dict[str, Any]:
         key = cache_key(settings)
         cached = _STORE_CACHE.get(key)
         if cached and (utc_now() - cached[0]).total_seconds() < STORE_CACHE_TTL_SECONDS:
-            return normalize_sheet_payload(json.loads(json.dumps(cached[1])))
-        payload = normalize_sheet_payload(read_sheet_store(settings))
+            return normalize_store_payload(json.loads(json.dumps(cached[1])))
+        payload = normalize_store_payload(read_sheet_store(settings))
         _STORE_CACHE[key] = (utc_now(), json.loads(json.dumps(payload)))
         return payload
     return read_file_store(settings)
 
 
 def write_store(settings: Settings, payload: dict[str, Any]) -> None:
-    normalized = normalize_sheet_payload(payload)
+    normalized = normalize_store_payload(payload)
     if can_use_google_sheet_store(settings):
         write_sheet_store(settings, normalized)
         _STORE_CACHE[cache_key(settings)] = (utc_now(), json.loads(json.dumps(normalized)))
@@ -692,7 +713,8 @@ def get_connected_asset_ids(settings: Settings, provider: str) -> list[str]:
     if provider == "facebook":
         return [str(item) for item in metadata.get("pageIds", []) if str(item).strip()]
     if provider == "tiktok":
-        return [str(metadata.get("openId", "")).strip()] if str(metadata.get("openId", "")).strip() else []
+        open_id = str(metadata.get("openId", "")).strip()
+        return [open_id] if open_id else []
     return []
 
 

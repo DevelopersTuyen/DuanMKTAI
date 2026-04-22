@@ -599,6 +599,9 @@ async def sync_google_website_data(settings: Settings) -> GoogleWebsiteSyncRespo
         write_google_metrics_sheet(settings, credentials, website_rows),
         write_wordpress_posts_sheet(settings, credentials, wordpress_rows),
     ]
+    from app.services.website_reporting import invalidate_website_dataset_cache
+
+    invalidate_website_dataset_cache(settings)
     is_partial = bool(warnings)
 
     return GoogleWebsiteSyncResponse(

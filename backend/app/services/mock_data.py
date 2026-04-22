@@ -463,7 +463,17 @@ def get_reports_data() -> ReportsResponse:
     )
 
 
-def get_settings_data(api_base_url: str, ollama_base_url: str, ollama_model: str, spreadsheet_id: str, worksheet: str, sync_interval: int) -> SettingsResponse:
+def get_settings_data(
+    api_base_url: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    spreadsheet_id: str,
+    worksheet: str,
+    sync_interval: int,
+    auto_sync: bool = True,
+    auto_recommend: bool = True,
+    auto_schedule: bool = False,
+) -> SettingsResponse:
     return SettingsResponse(
         apiBaseUrl=api_base_url,
         ollamaBaseUrl=ollama_base_url,
@@ -471,4 +481,7 @@ def get_settings_data(api_base_url: str, ollama_base_url: str, ollama_model: str
         spreadsheetId=spreadsheet_id,
         worksheet=worksheet,
         syncIntervalMinutes=sync_interval,
+        autoSync=auto_sync,
+        autoRecommend=auto_recommend,
+        autoSchedule=auto_schedule,
     )

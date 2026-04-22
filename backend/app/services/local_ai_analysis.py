@@ -1,12 +1,37 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.core.config import Settings
 from app.models import LocalAiAnalysisResponse, LocalAiChannelStatus
 from app.services.ollama_client import generate_text_with_ollama
 from app.services.social_platforms import get_social_platforms_status, latest_social_channel_rows
 from app.services.website_reporting import latest_snapshot, load_website_dataset, to_float
+
+LOCAL_AI_ANALYSIS_CACHE_TTL_SECONDS = 300
+_LOCAL_AI_ANALYSIS_CACHE: dict[str, tuple[datetime, LocalAiAnalysisResponse]] = {}
+
+
+def build_local_ai_analysis_cache_key(settings: Settings) -> str:
+    return ":".join(
+        [
+            settings.google_sheet_id,
+            settings.google_sheet_worksheet,
+            settings.wordpress_posts_worksheet,
+            settings.facebook_worksheet,
+            settings.linkedin_worksheet,
+            settings.youtube_worksheet,
+            settings.tiktok_worksheet,
+            settings.ollama_model,
+        ]
+    )
+
+
+def invalidate_local_ai_analysis_cache(settings: Settings | None = None) -> None:
+    if settings is None:
+        _LOCAL_AI_ANALYSIS_CACHE.clear()
+        return
+    _LOCAL_AI_ANALYSIS_CACHE.pop(build_local_ai_analysis_cache_key(settings), None)
 
 
 def format_number(value: float) -> str:
@@ -199,6 +224,11 @@ def build_fallback_analysis(
 
 
 async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
+    cache_key = build_local_ai_analysis_cache_key(settings)
+    cached = _LOCAL_AI_ANALYSIS_CACHE.get(cache_key)
+    if cached and (datetime.now(UTC) - cached[0]).total_seconds() < LOCAL_AI_ANALYSIS_CACHE_TTL_SECONDS:
+        return cached[1].model_copy(deep=True)
+
     website_records, post_records = load_website_dataset(settings)
     website_ga_rows = [record for record in website_records if record.get("source") == "google_analytics"]
     website_gsc_rows = [record for record in website_records if record.get("source") == "google_search_console"]
@@ -209,7 +239,11 @@ async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
 
     channels = build_channel_statuses(settings, latest_website_rows, latest_post_rows, latest_gsc_rows)
     prompt = build_analysis_prompt(latest_date, latest_website_rows, latest_post_rows, latest_gsc_rows, channels)
-    generated_text, source, used_model = await generate_text_with_ollama(prompt, settings)
+    generated_text, source, used_model = await generate_text_with_ollama(
+        prompt,
+        settings,
+        job_name="Phân tích AI cục bộ",
+    )
 
     if not generated_text:
         generated_text = build_fallback_analysis(latest_website_rows, latest_post_rows, latest_gsc_rows, channels)
@@ -226,7 +260,7 @@ async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
     else:
         summary = "AI cục bộ chưa có dữ liệu thật để phân tích đa kênh."
 
-    return LocalAiAnalysisResponse(
+    response = LocalAiAnalysisResponse(
         summary=summary,
         analysis=generated_text,
         model=used_model,
@@ -234,3 +268,5 @@ async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
         generatedAt=datetime.now().isoformat(timespec="seconds"),
         channels=channels,
     )
+    _LOCAL_AI_ANALYSIS_CACHE[cache_key] = (datetime.now(UTC), response.model_copy(deep=True))
+    return response

@@ -34,7 +34,12 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3:8b"
     google_sheet_id: str = "your-google-sheet-id"
     google_sheet_worksheet: str = "social_overview"
+    analysis_report_worksheet: str = "analysisday"
+    ai_content_posts_worksheet: str = "post_create_by_ai"
     sync_interval_minutes: int = 60
+    auto_sync: bool = True
+    auto_recommend: bool = True
+    auto_schedule: bool = False
     google_api_key: str | None = None
     google_service_account_email: str | None = None
     google_service_account_file: str | None = None

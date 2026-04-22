@@ -1,0 +1,33 @@
+.soft-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.status-chip-live {
+  background: rgba(55, 178, 77, 0.2);
+  color: #86efac;
+}
+
+.status-chip-warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+.status-chip-error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}

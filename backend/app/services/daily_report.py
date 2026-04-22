@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from urllib.parse import urlparse
 
 from google.oauth2.service_account import Credentials
@@ -18,6 +19,20 @@ from app.services.google_website import (
 )
 from app.services.ollama_client import generate_text_with_ollama
 from app.services.website_reporting import latest_snapshot, load_website_dataset, to_float
+
+DAILY_REPORT_CACHE_TTL_SECONDS = 45
+_DAILY_REPORT_CACHE: dict[str, tuple[datetime, dict[str, str]]] = {}
+
+
+def build_daily_report_cache_key(settings: Settings) -> str:
+    return f"{settings.google_sheet_id}:{settings.daily_report_worksheet}"
+
+
+def invalidate_daily_report_cache(settings: Settings | None = None) -> None:
+    if settings is None:
+        _DAILY_REPORT_CACHE.clear()
+        return
+    _DAILY_REPORT_CACHE.pop(build_daily_report_cache_key(settings), None)
 
 
 def format_compact_number(value: float) -> str:
@@ -315,7 +330,11 @@ async def generate_daily_report_sections(settings: Settings) -> tuple[dict[str, 
     fallback_sections = build_fallback_sections(context)
 
     for _ in range(3):
-        generated_text, source, used_model = await generate_text_with_ollama(prompt, settings)
+        generated_text, source, used_model = await generate_text_with_ollama(
+            prompt,
+            settings,
+            job_name="Tạo báo cáo ngày",
+        )
         parsed_sections = extract_json_payload(generated_text)
 
         if parsed_sections:
@@ -358,6 +377,7 @@ def write_daily_report_sheet(
         )
         .execute()
     )
+    invalidate_daily_report_cache(settings)
     return response.get("updatedRange", "")
 
 
@@ -394,6 +414,22 @@ async def sync_daily_report(settings: Settings) -> DailyReportSyncResponse:
 
 
 def get_latest_daily_report(settings: Settings) -> DailyReportLatestResponse:
+    cache_key = build_daily_report_cache_key(settings)
+    cached = _DAILY_REPORT_CACHE.get(cache_key)
+    if cached and (datetime.now(UTC) - cached[0]).total_seconds() < DAILY_REPORT_CACHE_TTL_SECONDS:
+        latest_record = deepcopy(cached[1])
+        return DailyReportLatestResponse(
+            reportDate=latest_record.get("ngay", ""),
+            tongQuat=latest_record.get("tong_quat", ""),
+            chiTietTungNenTang=latest_record.get("chi_tiet_tung_nen_tang", ""),
+            vanDeGapPhai=latest_record.get("van_de_gap_phai", ""),
+            deXuat=latest_record.get("de_xuat", ""),
+            model=latest_record.get("model_ai", ""),
+            source=latest_record.get("nguon_ai", ""),
+            generatedAt=latest_record.get("generated_at", ""),
+            worksheet=settings.daily_report_worksheet,
+        )
+
     credentials = load_service_account_credentials(settings)
     rows = get_sheet_values(settings, credentials, settings.daily_report_worksheet)
     if not rows or len(rows) <= 1:
@@ -419,6 +455,7 @@ def get_latest_daily_report(settings: Settings) -> DailyReportLatestResponse:
             item.get("generated_at", ""),
         ),
     )
+    _DAILY_REPORT_CACHE[cache_key] = (datetime.now(UTC), deepcopy(latest_record))
 
     return DailyReportLatestResponse(
         reportDate=latest_record.get("ngay", ""),

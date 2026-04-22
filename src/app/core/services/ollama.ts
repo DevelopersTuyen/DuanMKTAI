@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, of } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { ClientSettingsService } from './client-settings.service';
 
 export interface MarketingPromptRequest {
   platform: string;
@@ -22,10 +22,11 @@ interface OllamaGenerateResponse {
 })
 export class Ollama {
   private readonly http = inject(HttpClient);
+  private readonly clientSettings = inject(ClientSettingsService);
 
   generateMarketingCopy(request: MarketingPromptRequest): Observable<string> {
     return this.http
-      .post<OllamaGenerateResponse>(`${environment.apiBaseUrl}/content/generate`, request)
+      .post<OllamaGenerateResponse>(`${this.clientSettings.apiBaseUrl}/content/generate`, request)
       .pipe(
         map((response) => response.response?.trim() || this.buildFallbackResponse(request)),
         catchError(() => of(this.buildFallbackResponse(request))),

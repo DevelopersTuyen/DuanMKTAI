@@ -1,10 +1,11 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Cấu hình</span>
-      <h2 class="fw-bold mb-3">Cấu hình Ollama, Google Sheets và quy tắc tự động hóa.</h2>
+      <span class="section-kicker">Cài đặt</span>
+      <h2 class="fw-bold mb-3">Thiết lập hệ thống để toàn bộ luồng chạy theo cấu hình hiện tại.</h2>
       <p class="card-copy mb-0">
-        Đây là bộ thiết lập ban đầu để nhanh chóng kết nối mô hình cục bộ, đích dữ liệu và tần suất đồng bộ.
+        Các giá trị dưới đây sẽ được lưu ở backend và được dùng lại cho Ollama, Google Sheets, chu kỳ đồng bộ
+        và các quy tắc tự động hóa của hệ thống.
       </p>
     </section>
 
@@ -15,11 +16,11 @@
 
           <div class="row g-3">
             <div class="col-12">
-              <label class="form-label fw-semibold">Đường dẫn gốc API backend</label>
+              <label class="form-label fw-semibold">Đường dẫn API backend</label>
               <input class="form-control" [(ngModel)]="config.apiBaseUrl" />
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">Đường dẫn gốc Ollama</label>
+              <label class="form-label fw-semibold">Đường dẫn Ollama</label>
               <input class="form-control" [(ngModel)]="config.ollamaBaseUrl" />
             </div>
             <div class="col-md-6">
@@ -27,16 +28,16 @@
               <input class="form-control" [(ngModel)]="config.ollamaModel" />
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">Mã Spreadsheet</label>
+              <label class="form-label fw-semibold">ID Google Sheet</label>
               <input class="form-control" [(ngModel)]="config.spreadsheetId" />
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">Trang tính</label>
+              <label class="form-label fw-semibold">Worksheet mặc định</label>
               <input class="form-control" [(ngModel)]="config.worksheet" />
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Chu kỳ đồng bộ (phút)</label>
-              <input class="form-control" type="number" [(ngModel)]="config.syncInterval" />
+              <input class="form-control" type="number" min="1" [(ngModel)]="config.syncInterval" />
             </div>
           </div>
 
@@ -50,7 +51,7 @@
             <div class="col-md-4">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="autoRecommend" [(ngModel)]="config.autoRecommend" />
-                <label class="form-check-label" for="autoRecommend">Gợi ý từ AI</label>
+                <label class="form-check-label" for="autoRecommend">Tự động gợi ý AI</label>
               </div>
             </div>
             <div class="col-md-4">
@@ -62,40 +63,107 @@
           </div>
 
           <div class="d-grid d-md-flex gap-2 mt-4">
-            <button class="btn btn-app px-4" (click)="saveSettings()">Lưu cấu hình</button>
+            <button class="btn btn-app px-4" [disabled]="isSaving" (click)="saveSettings()">
+              {{ isSaving ? 'Đang lưu...' : 'Lưu cài đặt' }}
+            </button>
           </div>
 
           <div class="alert alert-success mt-3 mb-0" *ngIf="saveMessage">{{ saveMessage }}</div>
+          <div class="alert alert-danger mt-3 mb-0" *ngIf="errorMessage">{{ errorMessage }}</div>
         </article>
       </div>
 
       <div class="col-xl-5">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Ghi chú triển khai</div>
+          <div class="card-title mb-3">Cài đặt này tác động ở đâu</div>
           <div class="soft-list">
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Môi trường Ollama cục bộ</strong>
-                <div class="muted-text">Đảm bảo `ollama serve` đang chạy và đã tải `qwen3:8b` trước khi tạo nội dung.</div>
+                <strong>Backend API và frontend</strong>
+                <div class="muted-text">Các request mới từ frontend sẽ dùng API base URL vừa lưu.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Bộ ghi Google Sheets</strong>
-                <div class="muted-text">Cần backend hoặc Apps Script để ghi dữ liệu bằng service account một cách an toàn.</div>
+                <strong>AI cục bộ qua Ollama</strong>
+                <div class="muted-text">Sinh nội dung và phân tích AI sẽ đọc đường dẫn và model từ cấu hình này.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Kết nối OAuth</strong>
-                <div class="muted-text">Facebook, LinkedIn, TikTok và Google cần luồng cấp quyền riêng trên máy chủ.</div>
+                <strong>Google Sheets và đồng bộ dữ liệu</strong>
+                <div class="muted-text">Luồng đồng bộ website, social và báo cáo ngày sẽ ghi theo sheet đang chọn.</div>
+              </div>
+            </div>
+            <div class="soft-list-item">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Tự động hóa</strong>
+                <div class="muted-text">Các cờ tự động được lưu sẵn để backend và tác vụ nền dùng chung cùng một cấu hình.</div>
               </div>
             </div>
           </div>
         </article>
+      </div>
+    </section>
+
+    <section class="glass-card p-4 mt-4" *ngIf="automationStatus as status">
+      <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+        <div>
+          <div class="card-title mb-1">Trạng thái tác vụ nền</div>
+          <div class="muted-text">
+            Worker nền đọc lại cấu hình mỗi {{ status.pollSeconds }} giây và chạy theo cờ tự động đang bật.
+          </div>
+        </div>
+        <button class="btn btn-outline-light align-self-start" type="button" (click)="loadAutomationStatus()">
+          Làm mới trạng thái
+        </button>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="soft-panel">
+            <div class="small muted-text">Worker nền</div>
+            <div class="fw-semibold">{{ status.running ? 'Đang chạy' : 'Đang dừng' }}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="soft-panel">
+            <div class="small muted-text">Lần nạp cấu hình gần nhất</div>
+            <div class="fw-semibold">{{ formatDate(status.lastConfigReloadAt) }}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="soft-panel">
+            <div class="small muted-text">Chu kỳ thực tế</div>
+            <div class="fw-semibold">{{ status.effectiveSettings.syncIntervalMinutes }} phút</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-title mb-3">Tác vụ đang bám theo cài đặt</div>
+      <div class="row g-3">
+        <div class="col-lg-4" *ngFor="let job of status.jobs">
+          <article class="soft-panel h-100">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <strong>{{ job.name }}</strong>
+              <span class="status-chip" [class.status-chip-live]="job.lastStatus === 'success'"
+                [class.status-chip-warn]="job.lastStatus === 'running' || job.lastStatus === 'disabled'"
+                [class.status-chip-error]="job.lastStatus === 'error'">
+                {{ job.lastStatus }}
+              </span>
+            </div>
+            <div class="muted-text mb-2">
+              {{ job.enabled ? 'Đang bật theo cài đặt' : 'Đang tắt theo cài đặt' }}
+            </div>
+            <div class="small mb-1">Lần chạy: {{ formatDate(job.lastRunAt) }}</div>
+            <div class="small mb-3">Lần thành công: {{ formatDate(job.lastSuccessAt) }}</div>
+            <div class="small muted-text">{{ job.lastMessage }}</div>
+          </article>
+        </div>
       </div>
     </section>
   </div>

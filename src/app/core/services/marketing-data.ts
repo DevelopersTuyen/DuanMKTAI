@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { ClientSettingsService } from './client-settings.service';
 
 export interface DashboardKpi {
   label: string;
@@ -42,6 +42,14 @@ export interface LocalAiAnalysisResponse {
   source: 'ollama' | 'fallback';
   generatedAt: string;
   channels: LocalAiChannelStatus[];
+}
+
+export interface AiQueueStatusResponse {
+  waitingJobs: number;
+  currentJob: string | null;
+  running: boolean;
+  lastCompletedAt: string | null;
+  lastError: string | null;
 }
 
 export interface SyncChannel {
@@ -150,6 +158,51 @@ export interface ContentResponse {
   ideas: ContentIdea[];
 }
 
+export interface PublishTargetResult {
+  platform: string;
+  status: string;
+  detail: string;
+}
+
+export interface ContentDraft {
+  draftId: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  requestedPlatforms: string;
+  goal: string;
+  tone: string;
+  brief: string;
+  generatedContent: string;
+  markdownPath: string | null;
+  markdownContent: string;
+  model: string;
+  outlineModel: string | null;
+  imageModel: string | null;
+  seoModel: string | null;
+  source: 'ollama' | 'fallback';
+  worksheet: string;
+  confirmedAt: string | null;
+  publishedAt: string | null;
+  dispatchStatus: string;
+  dispatchResults: PublishTargetResult[];
+}
+
+export interface ContentDraftGenerateResponse {
+  message: string;
+  draft: ContentDraft;
+}
+
+export interface ContentDraftConfirmResponse {
+  message: string;
+  draft: ContentDraft;
+}
+
+export interface ContentDraftListResponse {
+  worksheet: string;
+  drafts: ContentDraft[];
+}
+
 export interface SchedulerResponse {
   queue: ScheduleItem[];
 }
@@ -201,6 +254,44 @@ export interface SettingsDefaultsResponse {
   spreadsheetId: string;
   worksheet: string;
   syncIntervalMinutes: number;
+  autoSync: boolean;
+  autoRecommend: boolean;
+  autoSchedule: boolean;
+}
+
+export interface SettingsUpdateRequest {
+  apiBaseUrl: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
+  spreadsheetId: string;
+  worksheet: string;
+  syncIntervalMinutes: number;
+  autoSync: boolean;
+  autoRecommend: boolean;
+  autoSchedule: boolean;
+}
+
+export interface SettingsSaveResponse {
+  status: 'success';
+  message: string;
+  settings: SettingsDefaultsResponse;
+}
+
+export interface AutomationJobStatus {
+  name: string;
+  enabled: boolean;
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastStatus: string;
+  lastMessage: string;
+}
+
+export interface AutomationStatusResponse {
+  running: boolean;
+  pollSeconds: number;
+  effectiveSettings: SettingsDefaultsResponse;
+  lastConfigReloadAt: string | null;
+  jobs: AutomationJobStatus[];
 }
 
 export interface GoogleWebsiteStatusResponse {
@@ -309,7 +400,11 @@ export interface OAuthActionResponse {
 })
 export class MarketingData {
   private readonly http = inject(HttpClient);
-  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly clientSettings = inject(ClientSettingsService);
+
+  private get apiBaseUrl(): string {
+    return this.clientSettings.apiBaseUrl;
+  }
 
   getDashboard(): Observable<DashboardResponse> {
     return this.http.get<DashboardResponse>(`${this.apiBaseUrl}/dashboard`);
@@ -317,6 +412,10 @@ export class MarketingData {
 
   getLocalAiAnalysis(): Observable<LocalAiAnalysisResponse> {
     return this.http.get<LocalAiAnalysisResponse>(`${this.apiBaseUrl}/ai/local-analysis`);
+  }
+
+  getAiQueueStatus(): Observable<AiQueueStatusResponse> {
+    return this.http.get<AiQueueStatusResponse>(`${this.apiBaseUrl}/ai/queue-status`);
   }
 
   getDataSync(): Observable<DataSyncResponse> {
@@ -329,6 +428,23 @@ export class MarketingData {
 
   getContent(): Observable<ContentResponse> {
     return this.http.get<ContentResponse>(`${this.apiBaseUrl}/content`);
+  }
+
+  getContentDrafts(): Observable<ContentDraftListResponse> {
+    return this.http.get<ContentDraftListResponse>(`${this.apiBaseUrl}/content/drafts`);
+  }
+
+  generateContentDraft(payload: {
+    platform: string;
+    goal: string;
+    tone: string;
+    brief: string;
+  }): Observable<ContentDraftGenerateResponse> {
+    return this.http.post<ContentDraftGenerateResponse>(`${this.apiBaseUrl}/content/drafts/generate`, payload);
+  }
+
+  confirmContentDraft(draftId: string): Observable<ContentDraftConfirmResponse> {
+    return this.http.post<ContentDraftConfirmResponse>(`${this.apiBaseUrl}/content/drafts/${draftId}/confirm`, {});
   }
 
   getScheduler(): Observable<SchedulerResponse> {
@@ -361,6 +477,14 @@ export class MarketingData {
 
   getSettingsDefaults(): Observable<SettingsDefaultsResponse> {
     return this.http.get<SettingsDefaultsResponse>(`${this.apiBaseUrl}/settings/defaults`);
+  }
+
+  saveSettings(payload: SettingsUpdateRequest): Observable<SettingsSaveResponse> {
+    return this.http.put<SettingsSaveResponse>(`${this.apiBaseUrl}/settings/defaults`, payload);
+  }
+
+  getAutomationStatus(): Observable<AutomationStatusResponse> {
+    return this.http.get<AutomationStatusResponse>(`${this.apiBaseUrl}/settings/runtime-status`);
   }
 
   getGoogleWebsiteStatus(): Observable<GoogleWebsiteStatusResponse> {

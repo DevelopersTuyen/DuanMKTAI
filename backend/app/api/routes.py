@@ -5,8 +5,13 @@ from fastapi.responses import RedirectResponse
 
 from app.core.config import Settings, get_settings
 from app.models import (
+    AiQueueStatusResponse,
     AnalyticsResponse,
+    AutomationStatusResponse,
     CampaignsResponse,
+    ContentDraftConfirmResponse,
+    ContentDraftGenerateResponse,
+    ContentDraftListResponse,
     ContentGenerateResponse,
     ContentResponse,
     DashboardResponse,
@@ -24,10 +29,14 @@ from app.models import (
     ReportsResponse,
     SchedulerResponse,
     SeoInsightsResponse,
+    SettingsSaveResponse,
     SettingsResponse,
+    SettingsUpdateRequest,
     SocialPlatformsStatusResponse,
     SocialPlatformsSyncResponse,
 )
+from app.services.automation import automation_manager
+from app.services.content_studio import confirm_content_draft, generate_content_draft, list_content_drafts
 from app.services.daily_report import get_latest_daily_report, sync_daily_report
 from app.services.google_website import get_google_website_status, sync_google_website_data
 from app.services.local_ai_analysis import get_local_ai_analysis
@@ -38,7 +47,6 @@ from app.services.mock_data import (
     get_integrations_data,
     get_reports_data,
     get_scheduler_data,
-    get_settings_data,
 )
 from app.services.oauth_connections import (
     build_authorization_url,
@@ -47,8 +55,9 @@ from app.services.oauth_connections import (
     handle_oauth_callback,
     refresh_provider_connection,
 )
-from app.services.ollama_client import generate_marketing_copy
+from app.services.ollama_client import generate_marketing_copy, get_ollama_queue_status
 from app.services.social_platforms import get_social_platforms_status, sync_social_platforms
+from app.services.system_settings import build_settings_response, get_runtime_settings, save_system_settings
 from app.services.website_reporting import (
     get_website_analytics_data,
     get_website_dashboard_data,
@@ -64,24 +73,29 @@ async def health() -> dict[str, str]:
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
-async def dashboard(settings: Settings = Depends(get_settings)) -> DashboardResponse:
+async def dashboard(settings: Settings = Depends(get_runtime_settings)) -> DashboardResponse:
     return get_website_dashboard_data(settings)
 
 
 @router.get("/ai/local-analysis", response_model=LocalAiAnalysisResponse)
-async def ai_local_analysis(settings: Settings = Depends(get_settings)) -> LocalAiAnalysisResponse:
+async def ai_local_analysis(settings: Settings = Depends(get_runtime_settings)) -> LocalAiAnalysisResponse:
     return await get_local_ai_analysis(settings)
 
 
+@router.get("/ai/queue-status", response_model=AiQueueStatusResponse)
+async def ai_queue_status() -> AiQueueStatusResponse:
+    return get_ollama_queue_status()
+
+
 @router.get("/data-sync", response_model=DataSyncResponse)
-async def data_sync(settings: Settings = Depends(get_settings)) -> DataSyncResponse:
+async def data_sync(settings: Settings = Depends(get_runtime_settings)) -> DataSyncResponse:
     wordpress_sites_count = len(settings.get_wordpress_sites()) or 3
     analytics_property_count = len(settings.get_google_analytics_property_ids()) or 1
     return get_data_sync_data(wordpress_sites_count, analytics_property_count)
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)
-async def analytics(settings: Settings = Depends(get_settings)) -> AnalyticsResponse:
+async def analytics(settings: Settings = Depends(get_runtime_settings)) -> AnalyticsResponse:
     return get_website_analytics_data(settings)
 
 
@@ -93,9 +107,33 @@ async def content() -> ContentResponse:
 @router.post("/content/generate", response_model=ContentGenerateResponse)
 async def content_generate(
     payload: MarketingPromptRequest,
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_runtime_settings),
 ) -> ContentGenerateResponse:
     return await generate_marketing_copy(payload, settings)
+
+
+@router.get("/content/drafts", response_model=ContentDraftListResponse)
+async def content_drafts(settings: Settings = Depends(get_runtime_settings)) -> ContentDraftListResponse:
+    return list_content_drafts(settings)
+
+
+@router.post("/content/drafts/generate", response_model=ContentDraftGenerateResponse)
+async def content_drafts_generate(
+    payload: MarketingPromptRequest,
+    settings: Settings = Depends(get_runtime_settings),
+) -> ContentDraftGenerateResponse:
+    return await generate_content_draft(payload, settings)
+
+
+@router.post("/content/drafts/{draft_id}/confirm", response_model=ContentDraftConfirmResponse)
+async def content_drafts_confirm(
+    draft_id: str,
+    settings: Settings = Depends(get_runtime_settings),
+) -> ContentDraftConfirmResponse:
+    try:
+        return confirm_content_draft(settings, draft_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/scheduler", response_model=SchedulerResponse)
@@ -109,7 +147,7 @@ async def campaigns() -> CampaignsResponse:
 
 
 @router.get("/seo-insights", response_model=SeoInsightsResponse)
-async def seo_insights(settings: Settings = Depends(get_settings)) -> SeoInsightsResponse:
+async def seo_insights(settings: Settings = Depends(get_runtime_settings)) -> SeoInsightsResponse:
     return get_website_seo_data(settings)
 
 
@@ -185,7 +223,7 @@ async def reports() -> ReportsResponse:
 
 
 @router.post("/reports/daily/sync", response_model=DailyReportSyncResponse)
-async def reports_daily_sync(settings: Settings = Depends(get_settings)) -> DailyReportSyncResponse:
+async def reports_daily_sync(settings: Settings = Depends(get_runtime_settings)) -> DailyReportSyncResponse:
     try:
         return await sync_daily_report(settings)
     except ValueError as exc:
@@ -195,7 +233,7 @@ async def reports_daily_sync(settings: Settings = Depends(get_settings)) -> Dail
 
 
 @router.get("/reports/daily/latest", response_model=DailyReportLatestResponse)
-async def reports_daily_latest(settings: Settings = Depends(get_settings)) -> DailyReportLatestResponse:
+async def reports_daily_latest(settings: Settings = Depends(get_runtime_settings)) -> DailyReportLatestResponse:
     try:
         return get_latest_daily_report(settings)
     except ValueError as exc:
@@ -206,23 +244,29 @@ async def reports_daily_latest(settings: Settings = Depends(get_settings)) -> Da
 
 @router.get("/settings/defaults", response_model=SettingsResponse)
 async def settings_defaults(settings: Settings = Depends(get_settings)) -> SettingsResponse:
-    return get_settings_data(
-        api_base_url="http://localhost:8000/api",
-        ollama_base_url=settings.ollama_base_url,
-        ollama_model=settings.ollama_model,
-        spreadsheet_id=settings.google_sheet_id,
-        worksheet=settings.google_sheet_worksheet,
-        sync_interval=settings.sync_interval_minutes,
-    )
+    return build_settings_response(settings)
+
+
+@router.put("/settings/defaults", response_model=SettingsSaveResponse)
+async def settings_save(
+    payload: SettingsUpdateRequest,
+    settings: Settings = Depends(get_settings),
+) -> SettingsSaveResponse:
+    return save_system_settings(settings, payload)
+
+
+@router.get("/settings/runtime-status", response_model=AutomationStatusResponse)
+async def settings_runtime_status() -> AutomationStatusResponse:
+    return automation_manager.get_status()
 
 
 @router.get("/google/website/status", response_model=GoogleWebsiteStatusResponse)
-async def google_website_status(settings: Settings = Depends(get_settings)) -> GoogleWebsiteStatusResponse:
+async def google_website_status(settings: Settings = Depends(get_runtime_settings)) -> GoogleWebsiteStatusResponse:
     return get_google_website_status(settings)
 
 
 @router.post("/google/website/sync", response_model=GoogleWebsiteSyncResponse)
-async def google_website_sync(settings: Settings = Depends(get_settings)) -> GoogleWebsiteSyncResponse:
+async def google_website_sync(settings: Settings = Depends(get_runtime_settings)) -> GoogleWebsiteSyncResponse:
     try:
         return await sync_google_website_data(settings)
     except ValueError as exc:
@@ -232,12 +276,12 @@ async def google_website_sync(settings: Settings = Depends(get_settings)) -> Goo
 
 
 @router.get("/social/status", response_model=SocialPlatformsStatusResponse)
-async def social_status(settings: Settings = Depends(get_settings)) -> SocialPlatformsStatusResponse:
+async def social_status(settings: Settings = Depends(get_runtime_settings)) -> SocialPlatformsStatusResponse:
     return get_social_platforms_status(settings)
 
 
 @router.post("/social/sync", response_model=SocialPlatformsSyncResponse)
-async def social_sync(settings: Settings = Depends(get_settings)) -> SocialPlatformsSyncResponse:
+async def social_sync(settings: Settings = Depends(get_runtime_settings)) -> SocialPlatformsSyncResponse:
     try:
         return await sync_social_platforms(settings)
     except ValueError as exc:
