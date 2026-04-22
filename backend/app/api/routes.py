@@ -1,7 +1,8 @@
+from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.config import Settings, get_settings
 from app.models import (
@@ -20,6 +21,7 @@ from app.models import (
     DailyReportSyncResponse,
     GoogleWebsiteStatusResponse,
     GoogleWebsiteSyncResponse,
+    ImageProviderStatusResponse,
     IntegrationsResponse,
     LocalAiAnalysisResponse,
     MarketingPromptRequest,
@@ -39,6 +41,7 @@ from app.services.automation import automation_manager
 from app.services.content_studio import confirm_content_draft, generate_content_draft, list_content_drafts
 from app.services.daily_report import get_latest_daily_report, sync_daily_report
 from app.services.google_website import get_google_website_status, sync_google_website_data
+from app.services.local_image_generation import probe_local_image_provider
 from app.services.local_ai_analysis import get_local_ai_analysis
 from app.services.mock_data import (
     get_campaigns_data,
@@ -65,6 +68,7 @@ from app.services.website_reporting import (
 )
 
 router = APIRouter()
+GENERATED_IMAGES_DIR = Path(__file__).resolve().parents[2] / "storage" / "generated_images"
 
 
 @router.get("/health")
@@ -85,6 +89,27 @@ async def ai_local_analysis(settings: Settings = Depends(get_runtime_settings)) 
 @router.get("/ai/queue-status", response_model=AiQueueStatusResponse)
 async def ai_queue_status() -> AiQueueStatusResponse:
     return get_ollama_queue_status()
+
+
+@router.get("/image-provider/status", response_model=ImageProviderStatusResponse)
+async def image_provider_status(settings: Settings = Depends(get_runtime_settings)) -> ImageProviderStatusResponse:
+    ready, message = await probe_local_image_provider(settings)
+    provider = settings.local_image_provider.strip().lower() or "disabled"
+    endpoint = None
+    workflow_file = None
+    if provider == "automatic1111":
+        endpoint = settings.automatic1111_base_url
+    elif provider == "comfyui":
+        endpoint = settings.comfyui_base_url
+        workflow_file = settings.comfyui_workflow_file
+
+    return ImageProviderStatusResponse(
+        provider=provider,
+        ready=ready,
+        message=message,
+        endpoint=endpoint,
+        workflowFile=workflow_file,
+    )
 
 
 @router.get("/data-sync", response_model=DataSyncResponse)
@@ -134,6 +159,17 @@ async def content_drafts_confirm(
         return confirm_content_draft(settings, draft_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/content/generated-image")
+async def content_generated_image(path: str = Query(..., min_length=1)) -> FileResponse:
+    target = (GENERATED_IMAGES_DIR / path).resolve()
+    base = GENERATED_IMAGES_DIR.resolve()
+    if base not in target.parents and target != base:
+        raise HTTPException(status_code=400, detail="Đường dẫn ảnh không hợp lệ.")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Không tìm thấy ảnh đã sinh.")
+    return FileResponse(target)
 
 
 @router.get("/scheduler", response_model=SchedulerResponse)

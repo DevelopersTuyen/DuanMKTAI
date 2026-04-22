@@ -24,10 +24,31 @@ class AiQueueStatusResponse(BaseModel):
     lastError: str | None
 
 
+class ImageProviderStatusResponse(BaseModel):
+    provider: str
+    ready: bool
+    message: str
+    endpoint: str | None = None
+    workflowFile: str | None = None
+
+
 class PublishTargetResult(BaseModel):
     platform: str
     status: str
     detail: str
+
+
+class GeneratedImageAsset(BaseModel):
+    slotId: str
+    placement: str
+    prompt: str
+    caption: str
+    altText: str
+    provider: str
+    status: str
+    imageUrl: str | None = None
+    localPath: str | None = None
+    error: str | None = None
 
 
 class ContentDraft(BaseModel):
@@ -48,6 +69,7 @@ class ContentDraft(BaseModel):
     seoModel: str | None = None
     source: Literal["ollama", "fallback"]
     worksheet: str
+    generatedImages: list[GeneratedImageAsset] = Field(default_factory=list)
     confirmedAt: str | None = None
     publishedAt: str | None = None
     dispatchStatus: str = "draft"

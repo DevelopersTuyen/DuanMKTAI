@@ -5,6 +5,7 @@ import {
   AiQueueStatusResponse,
   ContentDraft,
   ContentIdea,
+  ImageProviderStatusResponse,
   MarketingData,
 } from '../../core/services/marketing-data';
 
@@ -22,15 +23,16 @@ export class ContentStudioPage implements OnInit {
   drafts: ContentDraft[] = [];
   activeDraft: ContentDraft | null = null;
   aiQueueStatus: AiQueueStatusResponse | null = null;
+  imageProviderStatus: ImageProviderStatusResponse | null = null;
 
   prompt = {
-    platform: 'Facebook, LinkedIn',
-    goal: 'Tăng lead chất lượng',
-    tone: 'Tự tin, thực tế, dựa trên dữ liệu',
-    brief: 'Bài viết giới thiệu giải pháp dashboard marketing AI cho doanh nghiệp, nhấn vào hiệu quả SEO và khả năng quản trị đa kênh.',
+    platform: 'Website / Blog',
+    goal: 'Viết bài chuẩn SEO bám sát brief',
+    tone: 'Rõ ràng, giàu hình ảnh, tự nhiên',
+    brief: '',
   };
 
-  generatedCopy = 'Bài viết SEO hoàn chỉnh sẽ hiển thị ở đây sau khi pipeline 3 bước chạy xong.';
+  generatedCopy = 'Bài viết SEO hoàn chỉnh sẽ hiển thị ở đây sau khi pipeline chạy xong.';
   generationMessage = '';
   generationError = '';
   confirmMessage = '';
@@ -42,6 +44,7 @@ export class ContentStudioPage implements OnInit {
     this.loadIdeas();
     this.loadDrafts();
     this.loadQueueStatus();
+    this.loadImageProviderStatus();
   }
 
   loadIdeas(): void {
@@ -79,7 +82,27 @@ export class ContentStudioPage implements OnInit {
       });
   }
 
+  loadImageProviderStatus(): void {
+    this.marketingData
+      .getImageProviderStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.imageProviderStatus = response;
+        },
+        error: () => {
+          this.imageProviderStatus = null;
+        },
+      });
+  }
+
   generateContent(): void {
+    const normalizedBrief = this.prompt.brief.trim();
+    if (!normalizedBrief) {
+      this.generationError = 'Cần nhập mô tả yêu cầu hoặc chủ đề bài viết.';
+      return;
+    }
+
     this.isGenerating = true;
     this.generationMessage = '';
     this.generationError = '';
@@ -87,7 +110,12 @@ export class ContentStudioPage implements OnInit {
     this.confirmError = '';
 
     this.marketingData
-      .generateContentDraft(this.prompt)
+      .generateContentDraft({
+        platform: this.prompt.platform.trim() || 'Website / Blog',
+        goal: this.prompt.goal.trim() || 'Viết bài chuẩn SEO bám sát brief',
+        tone: this.prompt.tone.trim() || 'Rõ ràng, giàu hình ảnh, tự nhiên',
+        brief: normalizedBrief,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -97,11 +125,13 @@ export class ContentStudioPage implements OnInit {
           this.isGenerating = false;
           this.loadDrafts();
           this.loadQueueStatus();
+          this.loadImageProviderStatus();
         },
         error: (error) => {
           this.generationError = error?.error?.detail || 'Không thể tạo pipeline bài viết bằng AI local.';
           this.isGenerating = false;
           this.loadQueueStatus();
+          this.loadImageProviderStatus();
         },
       });
   }
@@ -149,6 +179,32 @@ export class ContentStudioPage implements OnInit {
     this.generationError = '';
     this.confirmMessage = '';
     this.confirmError = '';
+  }
+
+  countReadyImages(draft: ContentDraft | null): number {
+    return draft?.generatedImages?.filter((item) => item.status === 'ready').length ?? 0;
+  }
+
+  countImageSlots(draft: ContentDraft | null): number {
+    return draft?.generatedImages?.length ?? 0;
+  }
+
+  providerStatusLabel(): string {
+    if (!this.imageProviderStatus) {
+      return 'Chưa xác định';
+    }
+    return this.imageProviderStatus.ready ? 'Đang bật' : 'Chưa sẵn sàng';
+  }
+
+  providerToneClass(): string {
+    if (!this.imageProviderStatus) {
+      return 'status-neutral';
+    }
+    return this.imageProviderStatus.ready ? 'status-online' : 'status-offline';
+  }
+
+  queueJobLabel(): string {
+    return this.aiQueueStatus?.currentJob || 'Không có';
   }
 
   formatDate(value: string | null): string {

@@ -52,6 +52,14 @@ export interface AiQueueStatusResponse {
   lastError: string | null;
 }
 
+export interface ImageProviderStatusResponse {
+  provider: string;
+  ready: boolean;
+  message: string;
+  endpoint: string | null;
+  workflowFile: string | null;
+}
+
 export interface SyncChannel {
   name: string;
   accounts: number;
@@ -164,6 +172,19 @@ export interface PublishTargetResult {
   detail: string;
 }
 
+export interface GeneratedImageAsset {
+  slotId: string;
+  placement: string;
+  prompt: string;
+  caption: string;
+  altText: string;
+  provider: string;
+  status: string;
+  imageUrl: string | null;
+  localPath: string | null;
+  error: string | null;
+}
+
 export interface ContentDraft {
   draftId: string;
   createdAt: string;
@@ -182,6 +203,7 @@ export interface ContentDraft {
   seoModel: string | null;
   source: 'ollama' | 'fallback';
   worksheet: string;
+  generatedImages: GeneratedImageAsset[];
   confirmedAt: string | null;
   publishedAt: string | null;
   dispatchStatus: string;
@@ -416,6 +438,10 @@ export class MarketingData {
 
   getAiQueueStatus(): Observable<AiQueueStatusResponse> {
     return this.http.get<AiQueueStatusResponse>(`${this.apiBaseUrl}/ai/queue-status`);
+  }
+
+  getImageProviderStatus(): Observable<ImageProviderStatusResponse> {
+    return this.http.get<ImageProviderStatusResponse>(`${this.apiBaseUrl}/image-provider/status`);
   }
 
   getDataSync(): Observable<DataSyncResponse> {

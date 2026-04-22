@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 import uuid
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -13,10 +14,12 @@ from app.models import (
     ContentDraftConfirmResponse,
     ContentDraftGenerateResponse,
     ContentDraftListResponse,
+    GeneratedImageAsset,
     MarketingPromptRequest,
     PublishTargetResult,
 )
 from app.services.google_website import get_sheet_values, load_service_account_credentials, merge_sheet_rows
+from app.services.local_image_generation import generate_images_for_slots
 from app.services.ollama_client import generate_text_with_model
 from app.services.social_platforms import get_social_platforms_status
 from app.services.website_reporting import parse_sheet_records
@@ -28,6 +31,99 @@ IMAGE_MODEL = "llava"
 SEO_MODEL = "qwen2.5:3b"
 CONTENT_RECORDS_CACHE_TTL_SECONDS = 45
 _CONTENT_RECORDS_CACHE: dict[str, tuple[datetime, list[dict[str, str]]]] = {}
+TOPIC_STOPWORDS = {
+    "va",
+    "voi",
+    "cho",
+    "mot",
+    "nhung",
+    "cac",
+    "bai",
+    "viet",
+    "gioi",
+    "thieu",
+    "co",
+    "kem",
+    "hinh",
+    "anh",
+    "hay",
+    "the",
+    "nao",
+    "theo",
+    "yeu",
+    "cau",
+    "noi",
+    "dung",
+    "chuan",
+    "seo",
+    "tren",
+    "duoi",
+    "dang",
+    "viet",
+    "bai",
+    "chu",
+    "de",
+    "kem",
+    "hinh",
+    "anh",
+    "gioi",
+    "thieu",
+    "chuan",
+    "seo",
+}
+TOPIC_LEADING_FILLERS = {
+    "hay",
+    "vui",
+    "long",
+    "giup",
+    "toi",
+    "cho",
+    "minh",
+    "viet",
+    "tao",
+    "lam",
+    "mot",
+    "1",
+    "bai",
+    "gioi",
+    "thieu",
+    "ve",
+    "noi",
+}
+TOPIC_TRAILING_BREAKERS = {
+    "co",
+    "kem",
+    "chuan",
+    "theo",
+    "de",
+    "muc",
+    "giong",
+    "tone",
+    "platform",
+    "nen",
+    "tang",
+    "dang",
+}
+TOPIC_INSTRUCTION_VERBS = {
+    "tao",
+    "lam",
+    "them",
+    "chen",
+    "dua",
+    "giup",
+}
+OUTLINE_ARTIFACT_MARKERS = [
+    "điểm cần lưu ý",
+    "diem can luu y",
+    "vị trí chèn",
+    "vi tri chen",
+    "mô tả ảnh",
+    "mo ta anh",
+    "caption:",
+    "alt text:",
+    "gợi ý",
+    "goi y",
+]
 IMAGE_SLOT_PATTERN = re.compile(
     r"<!--\s*IMAGE_SLOT:\s*(?P<slot_id>[a-zA-Z0-9_-]+)\s*-->\s*"
     r"-\s*Vi tri chen:\s*(?P<placement>.+?)\s*"
@@ -58,6 +154,7 @@ CONTENT_DRAFT_HEADER = [
     "published_at",
     "dispatch_status",
     "dispatch_results_json",
+    "generated_images_json",
 ]
 
 
@@ -135,6 +232,29 @@ def deserialize_dispatch_results(raw_value: str) -> list[PublishTargetResult]:
     return results
 
 
+def serialize_generated_images(images: list[GeneratedImageAsset]) -> str:
+    return json.dumps([image.model_dump() for image in images], ensure_ascii=False)
+
+
+def deserialize_generated_images(raw_value: str) -> list[GeneratedImageAsset]:
+    if not raw_value.strip():
+        return []
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    results: list[GeneratedImageAsset] = []
+    for item in parsed:
+        if isinstance(item, dict):
+            try:
+                results.append(GeneratedImageAsset.model_validate(item))
+            except Exception:
+                continue
+    return results
+
+
 def write_content_rows(settings: Settings, rows: list[list[str]]) -> str:
     credentials = load_service_account_credentials(settings)
     worksheet = get_content_sheet_name(settings)
@@ -172,11 +292,87 @@ def load_content_records(settings: Settings) -> list[dict[str, str]]:
     return deepcopy(records)
 
 
+def normalize_text_for_match(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value.lower())
+    stripped = "".join(character for character in normalized if unicodedata.category(character) != "Mn")
+    return re.sub(r"[^a-z0-9\s]", " ", stripped)
+
+
+def clean_topic_phrase(value: str) -> str:
+    cleaned = " ".join(value.replace('"', " ").replace("'", " ").split()).strip(" .,-")
+    if not cleaned:
+        return ""
+    original_tokens = re.findall(r"[0-9A-Za-zÀ-ỹ]+", cleaned, flags=re.UNICODE)
+    if not original_tokens:
+        return cleaned
+
+    normalized_tokens = [normalize_text_for_match(token).strip() for token in original_tokens]
+    collected: list[str] = []
+
+    for index, token in enumerate(original_tokens):
+        normalized = normalized_tokens[index]
+        next_token = normalized_tokens[index + 1] if index + 1 < len(normalized_tokens) else ""
+
+        if not normalized:
+            continue
+        if not collected and normalized in TOPIC_LEADING_FILLERS:
+            continue
+        if collected and normalized in TOPIC_TRAILING_BREAKERS:
+            break
+        if collected and normalized in TOPIC_INSTRUCTION_VERBS:
+            break
+        if collected and normalized == "va" and next_token in TOPIC_INSTRUCTION_VERBS.union(TOPIC_TRAILING_BREAKERS):
+            break
+        collected.append(token)
+
+    while collected and normalize_text_for_match(collected[-1]).strip() in TOPIC_LEADING_FILLERS:
+        collected.pop()
+
+    topic = " ".join(collected).strip(" .,-")
+    return topic or cleaned
+
+
+def resolve_primary_topic(payload: MarketingPromptRequest) -> str:
+    brief = " ".join(payload.brief.split()).strip()
+    if brief:
+        return clean_topic_phrase(brief).rstrip(".") or brief.rstrip(".")
+    goal = " ".join(payload.goal.split()).strip()
+    return clean_topic_phrase(goal) or goal or "chủ đề theo yêu cầu"
+
+
+def extract_focus_terms(payload: MarketingPromptRequest) -> list[str]:
+    normalized = normalize_text_for_match(resolve_primary_topic(payload))
+    tokens = [token for token in normalized.split() if len(token) >= 3 and token not in TOPIC_STOPWORDS]
+    unique_tokens: list[str] = []
+    for token in tokens:
+        if token not in unique_tokens:
+            unique_tokens.append(token)
+    return unique_tokens[:6]
+
+
+def is_topic_aligned(content: str, payload: MarketingPromptRequest) -> bool:
+    focus_terms = extract_focus_terms(payload)
+    if not focus_terms:
+        return True
+    normalized_content = normalize_text_for_match(content)
+    matches = sum(1 for term in focus_terms if term in normalized_content)
+    return matches >= min(2, len(focus_terms))
+
+
+def has_outline_artifacts(content: str) -> bool:
+    normalized = normalize_text_for_match(content)
+    return any(marker in normalized for marker in OUTLINE_ARTIFACT_MARKERS)
+
+
 def build_outline_prompt(payload: MarketingPromptRequest) -> str:
+    primary_topic = resolve_primary_topic(payload)
     return "\n".join(
         [
             "Ban la SEO assistant.",
             "Hay tao dan bai bai viet bang Markdown, viet bang tieng Viet co dau, ro rang va co tinh tong quat.",
+            "Brief la nguon su that chinh ve chu de. Phai bam sat chu de trong brief, khong duoc tu y chuyen sang chu de khac.",
+            "Neu brief noi ve gom su Bat Trang thi toan bo dan bai va vi tri anh chi duoc xoay quanh gom su Bat Trang.",
+            "Tuyet doi khong dua noi dung ve Facebook, LinkedIn, lead, dashboard marketing neu brief khong nhac den.",
             "Bat buoc tra ve DUY NHAT Markdown, khong giai thich ngoai le.",
             "Format bat buoc:",
             "# Dan bai bai viet",
@@ -188,6 +384,7 @@ def build_outline_prompt(payload: MarketingPromptRequest) -> str:
             "- Vi tri chen: ...",
             "- Mo ta anh: ...",
             "",
+            f"Chu de chinh: {primary_topic}",
             f"Nen tang dich: {payload.platform}",
             f"Muc tieu: {payload.goal}",
             f"Giong van: {payload.tone}",
@@ -198,33 +395,34 @@ def build_outline_prompt(payload: MarketingPromptRequest) -> str:
 
 
 def fallback_outline(payload: MarketingPromptRequest) -> str:
+    primary_topic = resolve_primary_topic(payload)
     return "\n".join(
         [
             "# Dan bai bai viet",
             "## Mo dau",
-            f"- Neu van de chinh lien quan den {payload.goal.lower()}.",
-            f"- Dat boi canh cho {payload.platform}.",
+            f"- Gioi thieu tong quan ve {primary_topic.lower()}.",
+            "- Neu gia tri van hoa, cong dung hoac diem dac sac cua chu de.",
             "",
-            "## Thach thuc hien tai",
-            "- Liet ke cac diem dau trong van hanh marketing va SEO.",
+            "## Nguon goc va dac trung",
+            f"- Tom tat lich su, xuat xu va net rieng cua {primary_topic.lower()}.",
             "",
             "<!-- IMAGE_SLOT: image-1 -->",
-            "- Vi tri chen: Sau phan thach thuc hien tai.",
-            f"- Mo ta anh: Anh dashboard tong hop the hien KPI va muc tieu {payload.goal.lower()}.",
+            "- Vi tri chen: Sau phan gioi thieu nguon goc va dac trung.",
+            f"- Mo ta anh: Anh canh nghe nhan hoac san pham tieu bieu lien quan den {primary_topic.lower()}.",
             "",
-            "## Giai phap de xuat",
-            "- Trinh bay quy trinh, cong cu va cach do luong.",
+            "## Gia tri va suc hut",
+            "- Trinh bay nhung diem noi bat, chat lieu, hoa tiet hoac trai nghiem gan voi chu de.",
             "",
-            "## Cach trien khai",
-            "- Chia nho cac buoc hanh dong va KPI can theo doi.",
+            "## Cach lua chon hoac trai nghiem",
+            "- Dua ra goi y thuc te cho nguoi doc quan tam den chu de nay.",
             "",
             "<!-- IMAGE_SLOT: image-2 -->",
             "- Vi tri chen: Truoc phan ket luan.",
-            "- Mo ta anh: Anh doi ngu dang xem quy trinh lam viec va lich dang bai tren man hinh.",
+            f"- Mo ta anh: Anh bo tri khong gian, san pham hoan chinh hoac hinh anh trai nghiem thuc te ve {primary_topic.lower()}.",
             "",
             "## Ket luan",
-            "- Tong ket loi ich chinh.",
-            "- Chen CTA ro rang.",
+            "- Tong ket gia tri chinh cua chu de.",
+            "- Chen CTA phu hop voi muc dich bai viet.",
         ]
     )
 
@@ -319,9 +517,20 @@ def parse_image_metadata(raw_text: str, slots: list[dict[str, str]]) -> list[dic
     return final_metadata
 
 
-def inject_image_metadata(markdown_text: str, metadata: list[dict[str, str]]) -> str:
+def inject_image_metadata(
+    markdown_text: str,
+    metadata: list[dict[str, str]],
+    generated_images: list[GeneratedImageAsset] | None = None,
+) -> str:
     updated = markdown_text
+    image_map = {item.slotId: item for item in generated_images or []}
     for item in metadata:
+        generated_asset = image_map.get(item["slotId"])
+        extra_lines: list[str] = []
+        if generated_asset and generated_asset.imageUrl:
+            extra_lines.append(f"- Image URL: {generated_asset.imageUrl}")
+        if generated_asset and generated_asset.error:
+            extra_lines.append(f"- Image status: {generated_asset.status} - {generated_asset.error}")
         replacement = "\n".join(
             [
                 f"<!-- IMAGE_SLOT: {item['slotId']} -->",
@@ -329,6 +538,7 @@ def inject_image_metadata(markdown_text: str, metadata: list[dict[str, str]]) ->
                 f"- Mo ta anh: {_find_slot_value(markdown_text, item['slotId'], 'description')}",
                 f"- Caption: {item['caption']}",
                 f"- Alt text: {item['altText']}",
+                *extra_lines,
             ]
         )
         pattern = re.compile(
@@ -349,10 +559,13 @@ def _find_slot_value(markdown_text: str, slot_id: str, field: str) -> str:
 
 
 def build_seo_prompt(markdown_text: str, payload: MarketingPromptRequest) -> str:
+    primary_topic = resolve_primary_topic(payload)
     return "\n".join(
         [
             "Ban la SEO assistant chuyen viet bai chuan SEO bang tieng Viet co dau.",
             "Hay dung file Markdown duoi day de viet mot bai hoan chinh.",
+            "Chu de phai bam sat brief. Khong duoc doi chu de, khong duoc chen noi dung marketing khong lien quan.",
+            f"Chu de chinh bat buoc: {primary_topic}",
             "Bat buoc tra ve Markdown voi cac muc sau va dung dung ten heading:",
             "# Meta title",
             "# Meta description",
@@ -365,6 +578,7 @@ def build_seo_prompt(markdown_text: str, payload: MarketingPromptRequest) -> str
             "- Keywords viet tren 1 dong, cach nhau boi dau phay.",
             "- Phan '# Noi dung bai viet' phai la mot bai hoan chinh co mo dau, than bai, ket luan va CTA.",
             "- Khong duoc tra ve dan bai. Phai la bai viet day du.",
+            "- Tu khoa, meta title va than bai phai phan anh dung chu de trong brief.",
             f"Nen tang dich: {payload.platform}",
             f"Muc tieu: {payload.goal}",
             f"Giong van: {payload.tone}",
@@ -396,46 +610,128 @@ def extract_section_bullets(markdown_text: str) -> list[tuple[str, list[str]]]:
     return sections
 
 
+def filter_instruction_bullets(bullets: list[str]) -> list[str]:
+    ignored_prefixes = (
+        "vi tri chen:",
+        "mo ta anh:",
+        "caption:",
+        "alt text:",
+    )
+    filtered = [bullet for bullet in bullets if not bullet.lower().startswith(ignored_prefixes)]
+    return filtered
+
+
+def expand_bullet_to_paragraph(topic: str, heading: str, bullet: str) -> str:
+    cleaned_bullet = bullet.rstrip(".")
+    return (
+        f"Trong phần {heading.lower()}, {cleaned_bullet.lower()}. "
+        f"Khi triển khai thành bài viết hoàn chỉnh về {topic.lower()}, nội dung cần đi từ quan sát thực tế, "
+        "chi tiết cụ thể đến giá trị mà người đọc có thể cảm nhận hoặc áp dụng ngay, thay vì chỉ dừng ở mức gợi ý."
+    )
+
+
+def build_direct_topic_article(payload: MarketingPromptRequest) -> str:
+    topic = resolve_primary_topic(payload)
+    topic_display = topic[:1].upper() + topic[1:] if topic else "Chủ đề này"
+    return "\n\n".join(
+        [
+            "## Mở đầu",
+            (
+                f"{topic_display} là chủ đề rất phù hợp để phát triển thành một bài viết chuẩn SEO vì vừa có chiều sâu thông tin, "
+                "vừa có nhiều chất liệu để minh họa bằng hình ảnh và trải nghiệm thực tế. "
+                "Khi được triển khai đúng hướng, bài viết không chỉ giúp người đọc hiểu rõ bản chất của chủ đề mà còn tăng thời gian ở lại trang và khả năng tiếp cận từ công cụ tìm kiếm."
+            ),
+            (
+                f"Thay vì chỉ dừng ở mức giới thiệu ngắn, nội dung về {topic} cần đi xa hơn: làm rõ bối cảnh, chỉ ra điểm nổi bật, "
+                "giải thích giá trị thực tế và gợi mở lý do vì sao người đọc nên quan tâm. "
+                "Đó là nền tảng để bài viết trở thành một nội dung có thể xuất bản ngay, thay vì chỉ là dàn ý hay các gợi ý rời rạc."
+            ),
+            "## Bối cảnh và điểm nổi bật",
+            (
+                f"Khi nhìn vào bối cảnh hình thành và quá trình phát triển của {topic}, người đọc sẽ thấy sức hút của chủ đề này không đến từ một chi tiết đơn lẻ, "
+                "mà đến từ tổng hòa giữa lịch sử, bề dày trải nghiệm, đặc điểm nhận diện và những giá trị được duy trì theo thời gian. "
+                "Một bài viết tốt cần làm rõ các lớp nghĩa này để người đọc hiểu vì sao chủ đề có chỗ đứng riêng và vì sao nó vẫn giữ được sự quan tâm đến hiện tại."
+            ),
+            (
+                f"Ngoài yếu tố thông tin, {topic} còn hấp dẫn ở khả năng kể chuyện. "
+                "Nếu biết cách triển khai bằng các đoạn văn rõ ý, có dẫn dắt và có ví dụ cụ thể, nội dung sẽ trở nên giàu hình dung hơn rất nhiều. "
+                "Đây cũng là điểm giúp bài viết khác biệt so với các bản nháp chỉ lặp lại từ khóa hoặc mô tả quá chung chung."
+            ),
+            "## Giá trị thực tế và chiều sâu nội dung",
+            (
+                f"Giá trị của {topic} không chỉ nằm ở việc được biết đến rộng rãi, mà còn ở khả năng liên hệ trực tiếp với nhu cầu, cảm xúc hoặc mối quan tâm thực tế của người đọc. "
+                "Bài viết cần chỉ ra rõ chủ đề này có ý nghĩa gì trong đời sống, có thể đem lại trải nghiệm gì và vì sao nó đáng để tìm hiểu sâu hơn."
+            ),
+            (
+                "Khi nội dung chuyển từ mô tả chung sang phân tích cụ thể, bài viết sẽ dễ tạo niềm tin hơn. "
+                "Người đọc thường ở lại lâu hơn với những đoạn văn có thông tin thật, có hình dung rõ và có khả năng trả lời những câu hỏi thực tế của họ. "
+                "Đó cũng là cách giúp một bài SEO giữ được giá trị lâu dài thay vì chỉ tối ưu cho từ khóa."
+            ),
+            "## Hình ảnh minh họa và trải nghiệm đọc",
+            (
+                f"Với những chủ đề như {topic}, hình ảnh minh họa đóng vai trò rất quan trọng trong việc tăng sức thuyết phục. "
+                "Ảnh nên được chèn ở đúng nhịp bài, làm rõ chi tiết chính hoặc bổ sung thêm một lớp cảm nhận mà chữ viết khó truyền tải hết. "
+                "Khi caption và alt-text được viết chuẩn, hình ảnh không chỉ hỗ trợ trải nghiệm đọc mà còn giúp bài viết thân thiện hơn với SEO."
+            ),
+            (
+                "Một bài viết có hình ảnh đặt đúng chỗ sẽ bớt khô hơn, giữ nhịp đọc tự nhiên hơn và giúp người đọc dễ ghi nhớ nội dung hơn. "
+                "Đó là lý do bài viết hoàn chỉnh cần xem hình ảnh như một phần của câu chuyện, chứ không phải phần trang trí thêm vào ở cuối."
+            ),
+            "## Kết luận",
+            (
+                f"Tóm lại, để viết tốt về {topic}, nội dung cần hội đủ ba yếu tố: thông tin rõ ràng, cấu trúc mạch lạc và hình ảnh đúng ngữ cảnh. "
+                "Khi ba phần này đi cùng nhau, bài viết sẽ có đủ chiều sâu để thuyết phục người đọc và đủ độ hoàn chỉnh để đưa vào xuất bản ngay."
+            ),
+            (
+                f"Nếu muốn nâng chất lượng nội dung về {topic}, hãy ưu tiên các đoạn văn hoàn chỉnh, ví dụ cụ thể, cách diễn đạt tự nhiên và CTA rõ ràng ở cuối bài. "
+                "Đó là cách giúp nội dung sinh ra thực sự trở thành một bài viết thành phẩm, vừa tốt cho SEO vừa đủ sức tạo ấn tượng với người đọc."
+            ),
+        ]
+    )
+
+
 def build_article_body_from_markdown(payload: MarketingPromptRequest, markdown_text: str) -> str:
+    primary_topic = resolve_primary_topic(payload)
     sections = extract_section_bullets(markdown_text)
     paragraphs: list[str] = [
         "## Mở đầu",
         (
-            f"{payload.goal} đang là mục tiêu trọng tâm của nhiều đội ngũ marketing, nhưng để đạt hiệu quả bền vững "
-            f"thì cần kết hợp nội dung, SEO và quy trình triển khai rõ ràng cho {payload.platform.lower()}."
+            f"{primary_topic.capitalize()} là chủ đề có sức hút riêng vì hội tụ cả giá trị văn hóa, tính thẩm mỹ và chiều sâu trải nghiệm. "
+            "Chỉ cần tiếp cận đúng cách, người viết đã có thể mở ra một câu chuyện giàu hình ảnh, dễ đọc và đủ sức giữ chân người đọc lâu hơn trên trang."
         ),
         (
-            f"Bài viết này tổng hợp một lộ trình thực tế theo giọng điệu {payload.tone.lower()}, giúp doanh nghiệp "
-            "xây dựng nội dung vừa tối ưu tìm kiếm vừa có khả năng hỗ trợ chuyển đổi."
+            f"Bài viết này được triển khai theo giọng điệu {payload.tone.lower()}, bám sát chủ đề để giúp người đọc hiểu rõ nguồn gốc, đặc trưng, giá trị sử dụng "
+            f"và nét hấp dẫn riêng của {primary_topic.lower()} trong đời sống hiện đại."
         ),
     ]
 
     for heading, bullets in sections:
         if heading.lower().startswith("dan bai"):
             continue
+        content_bullets = filter_instruction_bullets(bullets)
         paragraphs.append(f"## {heading}")
-        if bullets:
-            intro = " ".join(bullets[:2])
+        if content_bullets:
+            intro = " ".join(content_bullets[:2])
             paragraphs.append(
-                f"{heading} là phần quan trọng trong chiến lược SEO vì nó tác động trực tiếp đến khả năng tiếp cận, mức độ tin cậy và hành vi người đọc. {intro}"
+                f"{heading} là lớp nội dung giúp người đọc tiếp cận {primary_topic.lower()} một cách mạch lạc hơn. "
+                f"Thay vì chỉ đưa ra nhận xét ngắn, phần này cần mở rộng thành thông tin có chiều sâu, gắn với bối cảnh thực tế và cảm nhận cụ thể. {intro}"
             )
-            for bullet in bullets:
-                paragraphs.append(f"### Điểm cần lưu ý\n{bullet}. Đây là ý cần được triển khai thành nội dung cụ thể, có số liệu hoặc ví dụ minh họa để tăng độ thuyết phục.")
+            for bullet in content_bullets[:3]:
+                paragraphs.append(expand_bullet_to_paragraph(primary_topic, heading, bullet))
         else:
             paragraphs.append(
-                f"{heading} cần được triển khai bằng nội dung có chiều sâu, kết nối với mục tiêu {payload.goal.lower()} và nhu cầu thực tế của người đọc."
+                f"{heading} cần được triển khai thành đoạn văn hoàn chỉnh, bám sát chủ đề {primary_topic.lower()} và ưu tiên mô tả cụ thể thay vì ghi chú dạng gợi ý."
             )
 
     paragraphs.extend(
         [
             "## Kết luận",
             (
-                f"Một bài viết chuẩn SEO không chỉ dừng ở việc có từ khóa, mà còn phải tổ chức nội dung mạch lạc, có hình ảnh đúng ngữ cảnh "
-                f"và dẫn dắt người đọc tới hành động phù hợp với mục tiêu {payload.goal.lower()}."
+                f"Một bài viết chuẩn SEO về {primary_topic.lower()} không chỉ cần đúng từ khóa mà còn phải có cấu trúc rõ ràng, hình ảnh đúng ngữ cảnh và thông tin đủ thuyết phục để giữ chân người đọc."
             ),
             (
-                f"Nếu bạn đang cần đẩy mạnh hiệu quả cho {payload.platform.lower()}, hãy dùng cấu trúc trên như một khung chuẩn để xuất bản nội dung đều đặn, "
-                "dễ đo lường và dễ tối ưu ở các vòng tiếp theo."
+                f"Nếu muốn xây dựng nội dung chất lượng về {primary_topic.lower()}, người viết nên ưu tiên sự cụ thể, tính kể chuyện và chiều sâu thông tin. "
+                "Khi nội dung vừa giàu hình ảnh vừa có cấu trúc tốt, bài viết sẽ dễ đạt hiệu quả SEO hơn mà vẫn giữ được cảm xúc tự nhiên cho người đọc."
             ),
         ]
     )
@@ -445,16 +741,18 @@ def build_article_body_from_markdown(payload: MarketingPromptRequest, markdown_t
 
 def fallback_seo_article(payload: MarketingPromptRequest, markdown_text: str) -> str:
     article_body = build_article_body_from_markdown(payload, markdown_text)
-    keywords = [payload.goal, payload.platform, "SEO assistant", "nội dung AI", "bài viết chuẩn SEO"]
+    if has_outline_artifacts(article_body) or len(article_body.split()) < 220 or not is_topic_aligned(article_body, payload):
+        article_body = build_direct_topic_article(payload)
+    primary_topic = resolve_primary_topic(payload)
+    keywords = [primary_topic, payload.platform, "bài viết chuẩn SEO", "hình ảnh minh họa", "nội dung chuyên đề"]
     return "\n".join(
         [
             "# Meta title",
-            f"{payload.goal} cho {payload.platform} | Bài viết chuẩn SEO",
+            f"{primary_topic} | Bài viết chuẩn SEO",
             "",
             "# Meta description",
             (
-                f"Bài viết hướng dẫn cách triển khai {payload.goal.lower()} cho {payload.platform.lower()} "
-                "bằng quy trình nội dung AI, hình ảnh và tối ưu SEO bài bản."
+                f"Khám phá {primary_topic.lower()} qua bài viết chuẩn SEO có hình ảnh minh họa, nội dung mạch lạc và thông tin dễ tiếp cận cho người đọc."
             ),
             "",
             "# Keywords",
@@ -476,7 +774,7 @@ def is_complete_seo_article(content: str) -> bool:
     )
     has_subheadings = "## " in content
     body_length = len(content.split())
-    return has_sections and has_subheadings and body_length >= 250
+    return has_sections and has_subheadings and body_length >= 250 and not has_outline_artifacts(content)
 
 
 def normalize_seo_article(content: str, payload: MarketingPromptRequest, markdown_text: str) -> str:
@@ -484,6 +782,7 @@ def normalize_seo_article(content: str, payload: MarketingPromptRequest, markdow
         return content.strip()
 
     fallback = fallback_seo_article(payload, markdown_text)
+    primary_topic = resolve_primary_topic(payload)
 
     extracted_meta_title = re.search(r"#\s*Meta title\s*(.+?)(?=\n#|\Z)", content, re.DOTALL | re.IGNORECASE)
     extracted_meta_description = re.search(r"#\s*Meta description\s*(.+?)(?=\n#|\Z)", content, re.DOTALL | re.IGNORECASE)
@@ -498,17 +797,16 @@ def normalize_seo_article(content: str, payload: MarketingPromptRequest, markdow
     return "\n".join(
         [
             "# Meta title",
-            meta_title or f"{payload.goal} cho {payload.platform} | Bài viết chuẩn SEO",
+            meta_title or f"{primary_topic} | Bài viết chuẩn SEO",
             "",
             "# Meta description",
             meta_description
             or (
-                f"Bài viết hướng dẫn cách triển khai {payload.goal.lower()} cho {payload.platform.lower()} "
-                "bằng quy trình nội dung AI, hình ảnh và tối ưu SEO bài bản."
+                f"Khám phá {primary_topic.lower()} qua bài viết chuẩn SEO có hình ảnh minh họa, nội dung mạch lạc và thông tin dễ tiếp cận cho người đọc."
             ),
             "",
             "# Keywords",
-            keywords or f"{payload.goal}, {payload.platform}, SEO assistant, bài viết chuẩn SEO",
+            keywords or f"{primary_topic}, {payload.platform}, bài viết chuẩn SEO",
             "",
             "# Noi dung bai viet",
             body or fallback.split("# Noi dung bai viet", 1)[1].strip(),
@@ -561,18 +859,21 @@ def strip_markdown_syntax(text: str) -> str:
 
 
 def build_sheet_ready_article(seo_markdown: str, payload: MarketingPromptRequest) -> tuple[str, str, str, str, str]:
+    primary_topic = resolve_primary_topic(payload)
     meta_title = strip_markdown_syntax(extract_seo_section(seo_markdown, "Meta title")) or (
-        f"{payload.goal} cho {payload.platform}"
+        f"{primary_topic.capitalize()} | Bài viết chuẩn SEO"
     )
     meta_description = strip_markdown_syntax(extract_seo_section(seo_markdown, "Meta description")) or (
-        f"Bài viết chuẩn SEO về {payload.goal.lower()} cho {payload.platform.lower()}."
+        f"Khám phá {primary_topic.lower()} qua bài viết chuẩn SEO có hình ảnh minh họa, nội dung mạch lạc và thông tin dễ tiếp cận cho người đọc."
     )
     keywords = normalize_keywords_text(strip_markdown_syntax(extract_seo_section(seo_markdown, "Keywords"))) or (
-        f"{payload.goal}, {payload.platform}, bài viết chuẩn SEO"
+        f"{primary_topic}, {payload.platform}, bài viết chuẩn SEO"
     )
     article_body = strip_markdown_syntax(extract_seo_section(seo_markdown, "Noi dung bai viet")) or strip_markdown_syntax(
         seo_markdown
     )
+    if has_outline_artifacts(article_body) or len(article_body.split()) < 220 or not is_topic_aligned(article_body, payload):
+        article_body = build_direct_topic_article(payload)
     final_article = "\n\n".join(
         [
             f"Meta title: {meta_title}",
@@ -586,9 +887,10 @@ def build_sheet_ready_article(seo_markdown: str, payload: MarketingPromptRequest
 
 
 async def run_markdown_pipeline(
+    draft_id: str,
     payload: MarketingPromptRequest,
     settings: Settings,
-) -> tuple[str, str, str, str, str]:
+) -> tuple[str, str, str, str, str, list[GeneratedImageAsset]]:
     outline_markdown, _, outline_used_model = await generate_text_with_model(
         build_outline_prompt(payload),
         settings,
@@ -611,7 +913,18 @@ async def run_markdown_pipeline(
         job_name="Bo sung caption va alt-text",
     )
     metadata = parse_image_metadata(image_raw_text, slots)
-    enriched_markdown = inject_image_metadata(outline_markdown, metadata)
+    slot_payload = [
+        {
+            "slotId": slot["slotId"],
+            "placement": slot["placement"],
+            "description": slot["description"],
+            "caption": next((item["caption"] for item in metadata if item["slotId"] == slot["slotId"]), ""),
+            "altText": next((item["altText"] for item in metadata if item["slotId"] == slot["slotId"]), ""),
+        }
+        for slot in slots
+    ]
+    generated_images = await generate_images_for_slots(draft_id, payload, slot_payload, settings)
+    enriched_markdown = inject_image_metadata(outline_markdown, metadata, generated_images)
 
     seo_markdown, source, seo_used_model = await generate_text_with_model(
         build_seo_prompt(enriched_markdown, payload),
@@ -625,9 +938,18 @@ async def run_markdown_pipeline(
         seo_used_model = SEO_MODEL
     else:
         seo_markdown = normalize_seo_article(seo_markdown, payload, enriched_markdown)
+        if not is_topic_aligned(seo_markdown, payload):
+            seo_markdown = fallback_seo_article(payload, enriched_markdown)
+            source = "fallback"
+            seo_used_model = SEO_MODEL
 
-    return outline_markdown, enriched_markdown, seo_markdown, source, "|".join(
-        [outline_used_model or OUTLINE_MODEL, image_used_model or IMAGE_MODEL, seo_used_model or SEO_MODEL]
+    return (
+        outline_markdown,
+        enriched_markdown,
+        seo_markdown,
+        source,
+        "|".join([outline_used_model or OUTLINE_MODEL, image_used_model or IMAGE_MODEL, seo_used_model or SEO_MODEL]),
+        generated_images,
     )
 
 
@@ -653,6 +975,7 @@ def record_to_draft(record: dict[str, str], settings: Settings) -> ContentDraft:
         seoModel=record.get("seo_model") or None,
         source=record.get("nguon_ai", "fallback"),  # type: ignore[arg-type]
         worksheet=get_content_sheet_name(settings),
+        generatedImages=deserialize_generated_images(record.get("generated_images_json", "")),
         confirmedAt=record.get("confirmed_at") or None,
         publishedAt=record.get("published_at") or None,
         dispatchStatus=record.get("dispatch_status", "draft"),
@@ -718,9 +1041,13 @@ async def generate_content_draft(
     payload: MarketingPromptRequest,
     settings: Settings,
 ) -> ContentDraftGenerateResponse:
-    outline_markdown, enriched_markdown, seo_markdown, source, model_trace = await run_markdown_pipeline(payload, settings)
     draft_id = uuid.uuid4().hex
     timestamp = now_iso()
+    outline_markdown, enriched_markdown, seo_markdown, source, model_trace, generated_images = await run_markdown_pipeline(
+        draft_id,
+        payload,
+        settings,
+    )
     markdown_content = build_pipeline_markdown(outline_markdown, enriched_markdown, seo_markdown)
     markdown_path = write_markdown_file(draft_id, markdown_content)
     final_article, meta_title, meta_description, keywords, article_body = build_sheet_ready_article(
@@ -751,6 +1078,7 @@ async def generate_content_draft(
         seoModel=seo_model,
         source=source,  # type: ignore[arg-type]
         worksheet=get_content_sheet_name(settings),
+        generatedImages=generated_images,
         confirmedAt=None,
         publishedAt=None,
         dispatchStatus="draft",
@@ -784,6 +1112,7 @@ async def generate_content_draft(
                 "",
                 draft.dispatchStatus,
                 "[]",
+                serialize_generated_images(draft.generatedImages),
             ],
         ],
     )
@@ -792,6 +1121,7 @@ async def generate_content_draft(
         message=(
             f"Đã chạy pipeline {OUTLINE_MODEL} -> {IMAGE_MODEL} -> {SEO_MODEL}. "
             f"Sheet {get_content_sheet_name(settings)} chỉ lưu bài viết hoàn chỉnh; "
+            f"đã xử lý {len([item for item in generated_images if item.status == 'ready'])}/{len(generated_images)} ảnh local; "
             "Markdown pipeline được giữ nội bộ trên backend."
         ),
         draft=draft,
@@ -825,6 +1155,7 @@ def confirm_content_draft(settings: Settings, draft_id: str) -> ContentDraftConf
         seoModel=record.get("seo_model") or None,
         source=record.get("nguon_ai", "fallback"),  # type: ignore[arg-type]
         worksheet=get_content_sheet_name(settings),
+        generatedImages=deserialize_generated_images(record.get("generated_images_json", "")),
         confirmedAt=confirmed_at,
         publishedAt=None,
         dispatchStatus=dispatch_status,
@@ -858,6 +1189,7 @@ def confirm_content_draft(settings: Settings, draft_id: str) -> ContentDraftConf
                 draft.publishedAt or "",
                 draft.dispatchStatus,
                 serialize_dispatch_results(draft.dispatchResults),
+                serialize_generated_images(draft.generatedImages),
             ],
         ],
     )

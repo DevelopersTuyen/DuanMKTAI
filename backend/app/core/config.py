@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     google_sheet_worksheet: str = "social_overview"
     analysis_report_worksheet: str = "analysisday"
     ai_content_posts_worksheet: str = "post_create_by_ai"
+    local_image_provider: str = "disabled"
+    local_image_negative_prompt: str = ""
+    local_image_width: int = 1024
+    local_image_height: int = 1024
+    local_image_steps: int = 28
+    local_image_cfg_scale: float = 7.0
+    local_image_sampler: str = "DPM++ 2M Karras"
+    automatic1111_base_url: str = "http://127.0.0.1:7860"
+    comfyui_base_url: str = "http://127.0.0.1:8188"
+    comfyui_workflow_file: str | None = None
     sync_interval_minutes: int = 60
     auto_sync: bool = True
     auto_recommend: bool = True
