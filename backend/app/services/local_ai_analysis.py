@@ -5,6 +5,7 @@ from datetime import datetime
 from app.core.config import Settings
 from app.models import LocalAiAnalysisResponse, LocalAiChannelStatus
 from app.services.ollama_client import generate_text_with_ollama
+from app.services.social_platforms import get_social_platforms_status, latest_social_channel_rows
 from app.services.website_reporting import latest_snapshot, load_website_dataset, to_float
 
 
@@ -16,7 +17,52 @@ def format_number(value: float) -> str:
     return f"{value:.0f}"
 
 
+def build_social_channel_statuses(settings: Settings) -> list[LocalAiChannelStatus]:
+    status_lookup = {item.name: item for item in get_social_platforms_status(settings).statuses}
+    latest_rows = latest_social_channel_rows(settings)
+    channel_statuses: list[LocalAiChannelStatus] = []
+
+    for platform_name in ["Facebook", "TikTok", "LinkedIn", "YouTube"]:
+        status = status_lookup.get(platform_name)
+        rows = latest_rows.get(platform_name, [])
+        content_rows = [row for row in rows if row.get("content_type") not in {"profile", "page_profile", "organization_profile", "channel_profile"}]
+
+        if rows:
+            channel_statuses.append(
+                LocalAiChannelStatus(
+                    name=platform_name,
+                    status="Đã kết nối",
+                    detail=f"Có {len(rows)} dòng dữ liệu thật, gồm {len(content_rows)} nội dung ở snapshot gần nhất.",
+                    rows=len(rows),
+                )
+            )
+            continue
+
+        if status and (status.hasCredentials or status.configuredAssets > 0):
+            channel_statuses.append(
+                LocalAiChannelStatus(
+                    name=platform_name,
+                    status="Đã cấu hình, chờ đồng bộ",
+                    detail=f"Đã có cấu hình cho sheet {status.worksheet} nhưng chưa có dòng dữ liệu thật.",
+                    rows=0,
+                )
+            )
+            continue
+
+        channel_statuses.append(
+            LocalAiChannelStatus(
+                name=platform_name,
+                status="Chưa kết nối",
+                detail="Chưa có sheet dữ liệu thật để AI phân tích.",
+                rows=0,
+            )
+        )
+
+    return channel_statuses
+
+
 def build_channel_statuses(
+    settings: Settings,
     latest_website_rows: list[dict[str, str]],
     latest_post_rows: list[dict[str, str]],
     latest_gsc_rows: list[dict[str, str]],
@@ -31,30 +77,7 @@ def build_channel_statuses(
             ),
             rows=len(latest_website_rows) + len(latest_post_rows) + len(latest_gsc_rows),
         ),
-        LocalAiChannelStatus(
-            name="Facebook",
-            status="Chưa kết nối",
-            detail="Chưa có sheet dữ liệu thật để AI phân tích.",
-            rows=0,
-        ),
-        LocalAiChannelStatus(
-            name="TikTok",
-            status="Chưa kết nối",
-            detail="Chưa có sheet dữ liệu thật để AI phân tích.",
-            rows=0,
-        ),
-        LocalAiChannelStatus(
-            name="LinkedIn",
-            status="Chưa kết nối",
-            detail="Chưa có sheet dữ liệu thật để AI phân tích.",
-            rows=0,
-        ),
-        LocalAiChannelStatus(
-            name="YouTube",
-            status="Chưa kết nối",
-            detail="Chưa có sheet dữ liệu thật để AI phân tích.",
-            rows=0,
-        ),
+        *build_social_channel_statuses(settings),
     ]
 
 
@@ -155,7 +178,7 @@ def build_fallback_analysis(
         [
             "1. Tóm tắt điều hành",
             (
-                f"Website hiện là nguồn dữ liệu thật duy nhất để phân tích. "
+                f"Website hiện là nguồn dữ liệu thật chính để phân tích. "
                 f"Tổng pageviews đang ở mức {format_number(total_pageviews)} và tổng sessions ở mức {format_number(total_sessions)}."
             ),
             "",
@@ -184,7 +207,7 @@ async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
     _, latest_gsc_rows = latest_snapshot(website_gsc_rows)
     _, latest_post_rows = latest_snapshot(post_records)
 
-    channels = build_channel_statuses(latest_website_rows, latest_post_rows, latest_gsc_rows)
+    channels = build_channel_statuses(settings, latest_website_rows, latest_post_rows, latest_gsc_rows)
     prompt = build_analysis_prompt(latest_date, latest_website_rows, latest_post_rows, latest_gsc_rows, channels)
     generated_text, source, used_model = await generate_text_with_ollama(prompt, settings)
 
@@ -193,13 +216,15 @@ async def get_local_ai_analysis(settings: Settings) -> LocalAiAnalysisResponse:
         source = "fallback"
         used_model = settings.ollama_model
 
+    social_connected = len([channel for channel in channels if channel.name != "Website" and channel.rows > 0])
     if latest_website_rows:
         summary = (
             f"AI đang phân tích dữ liệu thật của website tại snapshot {latest_date}, "
-            f"với {len(latest_website_rows)} dòng GA4 và {len(latest_post_rows)} bài WordPress."
+            f"với {len(latest_website_rows)} dòng GA4, {len(latest_post_rows)} bài WordPress "
+            f"và {social_connected} kênh social đã có dữ liệu thật."
         )
     else:
-        summary = "AI cục bộ chưa có dữ liệu website thật để phân tích."
+        summary = "AI cục bộ chưa có dữ liệu thật để phân tích đa kênh."
 
     return LocalAiAnalysisResponse(
         summary=summary,

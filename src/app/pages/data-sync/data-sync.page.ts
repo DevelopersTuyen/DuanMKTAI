@@ -1,7 +1,15 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { GoogleWebsiteStatusResponse, GoogleWebsiteSyncResponse, ManagedAccount, MarketingData, SyncChannel } from '../../core/services/marketing-data';
+import {
+  GoogleWebsiteStatusResponse,
+  GoogleWebsiteSyncResponse,
+  ManagedAccount,
+  MarketingData,
+  SocialPlatformStatus,
+  SocialPlatformsSyncResponse,
+  SyncChannel,
+} from '../../core/services/marketing-data';
 
 interface WordPressUiSite {
   name: string;
@@ -24,6 +32,12 @@ export class DataSyncPage implements OnInit {
   syncResult?: GoogleWebsiteSyncResponse;
   syncError = '';
   isSyncing = false;
+
+  socialStatuses: SocialPlatformStatus[] = [];
+  socialSyncResult?: SocialPlatformsSyncResponse;
+  socialSyncError = '';
+  isSocialSyncing = false;
+
   readonly wordpressSites: WordPressUiSite[] = [
     { name: 'ssg-vietnam.com', mode: 'manual' },
     { name: 'fasolutions.vn', mode: 'manual' },
@@ -39,6 +53,7 @@ export class DataSyncPage implements OnInit {
       });
 
     this.loadGoogleStatus();
+    this.loadSocialStatus();
   }
 
   syncGoogleWebsite(): void {
@@ -61,11 +76,39 @@ export class DataSyncPage implements OnInit {
       });
   }
 
+  syncSocialPlatforms(): void {
+    this.isSocialSyncing = true;
+    this.socialSyncError = '';
+    this.socialSyncResult = undefined;
+    this.marketingData.syncSocialPlatforms()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.socialSyncResult = response;
+          this.isSocialSyncing = false;
+          this.loadSocialStatus();
+        },
+        error: (error) => {
+          this.socialSyncError = error?.error?.detail ?? 'Không thể đồng bộ dữ liệu social từ các API.';
+          this.isSocialSyncing = false;
+          this.loadSocialStatus();
+        },
+      });
+  }
+
   private loadGoogleStatus(): void {
     this.marketingData.getGoogleWebsiteStatus()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.googleStatus = response;
+      });
+  }
+
+  private loadSocialStatus(): void {
+    this.marketingData.getSocialStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => {
+        this.socialStatuses = response.statuses;
       });
   }
 
@@ -102,5 +145,19 @@ export class DataSyncPage implements OnInit {
       label: 'Chờ kiểm tra',
       detail: 'Hiện đang được đưa vào quy trình theo dõi thủ công trên giao diện.',
     };
+  }
+
+  getSocialStatusClass(status: SocialPlatformStatus): string {
+    if (status.ready) {
+      return 'status-live';
+    }
+    if (status.hasCredentials || status.configuredAssets > 0) {
+      return 'status-warning';
+    }
+    return 'status-draft';
+  }
+
+  hasReadySocialPlatform(): boolean {
+    return this.socialStatuses.some((item) => item.ready);
   }
 }

@@ -43,6 +43,18 @@ class DailyReportSyncResponse(BaseModel):
     generatedAt: str
 
 
+class DailyReportLatestResponse(BaseModel):
+    reportDate: str
+    tongQuat: str
+    chiTietTungNenTang: str
+    vanDeGapPhai: str
+    deXuat: str
+    model: str
+    source: str
+    generatedAt: str
+    worksheet: str
+
+
 class DashboardKpi(BaseModel):
     label: str
     value: str
@@ -228,3 +240,77 @@ class GoogleWebsiteSyncResponse(BaseModel):
     searchConsoleRows: int
     updatedRanges: list[str]
     warnings: list[str]
+
+
+class SocialPlatformStatus(BaseModel):
+    name: str
+    worksheet: str
+    ready: bool
+    configuredAssets: int
+    hasCredentials: bool
+    message: str
+    warnings: list[str]
+
+
+class SocialPlatformsStatusResponse(BaseModel):
+    spreadsheetId: str
+    statuses: list[SocialPlatformStatus]
+
+
+class SocialPlatformSyncResult(BaseModel):
+    platform: str
+    worksheet: str
+    rows: int
+    updatedRange: str
+    status: Literal["success", "skipped", "warning"]
+    detail: str
+
+
+class SocialPlatformsSyncResponse(BaseModel):
+    status: str
+    message: str
+    spreadsheetId: str
+    results: list[SocialPlatformSyncResult]
+    warnings: list[str]
+
+
+class OAuthProviderStatus(BaseModel):
+    provider: str
+    label: str
+    worksheet: str
+    connected: bool
+    ready: bool
+    connectable: bool
+    supportsRefresh: bool
+    supportsAutoRefresh: bool
+    status: str
+    statusClass: str
+    authType: str
+    accountLabel: str | None
+    accountId: str | None
+    configuredAssets: int
+    assetSummary: str
+    connectedAt: str | None
+    expiresAt: str | None
+    authNote: str
+    warnings: list[str]
+
+
+class OAuthProvidersResponse(BaseModel):
+    frontendBaseUrl: str
+    backendBaseUrl: str
+    providers: list[OAuthProviderStatus]
+
+
+class OAuthStartResponse(BaseModel):
+    provider: str
+    authorizationUrl: str
+
+
+class OAuthActionResponse(BaseModel):
+    provider: str
+    status: str
+    message: str
+    connected: bool
+    accountLabel: str | None = None
+    expiresAt: str | None = None

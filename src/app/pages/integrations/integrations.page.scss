@@ -1,0 +1,23 @@
+.oauth-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.oauth-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.oauth-metric {
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 767px) {
+  .oauth-metrics {
+    grid-template-columns: 1fr;
+  }
+}

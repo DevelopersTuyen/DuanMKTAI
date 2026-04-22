@@ -171,6 +171,29 @@ export interface ReportsResponse {
   reports: ReportSnapshot[];
 }
 
+export interface DailyReportSyncResponse {
+  status: 'success';
+  message: string;
+  worksheet: string;
+  reportDate: string;
+  updatedRange: string;
+  model: string;
+  source: 'ollama' | 'fallback';
+  generatedAt: string;
+}
+
+export interface DailyReportLatestResponse {
+  reportDate: string;
+  tongQuat: string;
+  chiTietTungNenTang: string;
+  vanDeGapPhai: string;
+  deXuat: string;
+  model: string;
+  source: string;
+  generatedAt: string;
+  worksheet: string;
+}
+
 export interface SettingsDefaultsResponse {
   apiBaseUrl: string;
   ollamaBaseUrl: string;
@@ -205,6 +228,80 @@ export interface GoogleWebsiteSyncResponse {
   searchConsoleRows: number;
   updatedRanges: string[];
   warnings: string[];
+}
+
+export interface SocialPlatformStatus {
+  name: string;
+  worksheet: string;
+  ready: boolean;
+  configuredAssets: number;
+  hasCredentials: boolean;
+  message: string;
+  warnings: string[];
+}
+
+export interface SocialPlatformsStatusResponse {
+  spreadsheetId: string;
+  statuses: SocialPlatformStatus[];
+}
+
+export interface SocialPlatformSyncResult {
+  platform: string;
+  worksheet: string;
+  rows: number;
+  updatedRange: string;
+  status: 'success' | 'skipped' | 'warning';
+  detail: string;
+}
+
+export interface SocialPlatformsSyncResponse {
+  status: string;
+  message: string;
+  spreadsheetId: string;
+  results: SocialPlatformSyncResult[];
+  warnings: string[];
+}
+
+export interface OAuthProviderStatus {
+  provider: string;
+  label: string;
+  worksheet: string;
+  connected: boolean;
+  ready: boolean;
+  connectable: boolean;
+  supportsRefresh: boolean;
+  supportsAutoRefresh: boolean;
+  status: string;
+  statusClass: string;
+  authType: string;
+  accountLabel: string | null;
+  accountId: string | null;
+  configuredAssets: number;
+  assetSummary: string;
+  connectedAt: string | null;
+  expiresAt: string | null;
+  authNote: string;
+  warnings: string[];
+}
+
+export interface OAuthProvidersResponse {
+  frontendBaseUrl: string;
+  backendBaseUrl: string;
+  providers: OAuthProviderStatus[];
+}
+
+export interface OAuthStartResponse {
+  provider: string;
+  authorizationUrl: string;
+}
+
+export interface OAuthActionResponse {
+  provider: string;
+  status: string;
+  message: string;
+  connected: boolean;
+  accountLabel: string | null;
+  expiresAt: string | null;
 }
 
 @Injectable({
@@ -254,6 +351,14 @@ export class MarketingData {
     return this.http.get<ReportsResponse>(`${this.apiBaseUrl}/reports`);
   }
 
+  getLatestDailyReport(): Observable<DailyReportLatestResponse> {
+    return this.http.get<DailyReportLatestResponse>(`${this.apiBaseUrl}/reports/daily/latest`);
+  }
+
+  syncDailyReport(): Observable<DailyReportSyncResponse> {
+    return this.http.post<DailyReportSyncResponse>(`${this.apiBaseUrl}/reports/daily/sync`, {});
+  }
+
   getSettingsDefaults(): Observable<SettingsDefaultsResponse> {
     return this.http.get<SettingsDefaultsResponse>(`${this.apiBaseUrl}/settings/defaults`);
   }
@@ -264,5 +369,30 @@ export class MarketingData {
 
   syncGoogleWebsite(): Observable<GoogleWebsiteSyncResponse> {
     return this.http.post<GoogleWebsiteSyncResponse>(`${this.apiBaseUrl}/google/website/sync`, {});
+  }
+
+  getSocialStatus(): Observable<SocialPlatformsStatusResponse> {
+    return this.http.get<SocialPlatformsStatusResponse>(`${this.apiBaseUrl}/social/status`);
+  }
+
+  syncSocialPlatforms(): Observable<SocialPlatformsSyncResponse> {
+    return this.http.post<SocialPlatformsSyncResponse>(`${this.apiBaseUrl}/social/sync`, {});
+  }
+
+  getOAuthProviders(): Observable<OAuthProvidersResponse> {
+    return this.http.get<OAuthProvidersResponse>(`${this.apiBaseUrl}/oauth/providers`);
+  }
+
+  getOAuthStart(provider: string, returnUrl?: string): Observable<OAuthStartResponse> {
+    const encodedReturnUrl = returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : '';
+    return this.http.get<OAuthStartResponse>(`${this.apiBaseUrl}/oauth/${provider}/start${encodedReturnUrl}`);
+  }
+
+  refreshOAuthProvider(provider: string): Observable<OAuthActionResponse> {
+    return this.http.post<OAuthActionResponse>(`${this.apiBaseUrl}/oauth/${provider}/refresh`, {});
+  }
+
+  disconnectOAuthProvider(provider: string): Observable<OAuthActionResponse> {
+    return this.http.delete<OAuthActionResponse>(`${this.apiBaseUrl}/oauth/${provider}`);
   }
 }

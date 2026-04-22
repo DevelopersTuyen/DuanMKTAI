@@ -36,10 +36,92 @@
         <article class="glass-card p-4">
           <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
             <div>
+              <div class="card-title">Đồng bộ mạng xã hội</div>
+              <div class="card-copy">
+                Facebook, LinkedIn, YouTube và TikTok sẽ ghi vào các sheet riêng để AI và báo cáo ngày đọc lại sau.
+              </div>
+            </div>
+
+            <div class="d-grid d-md-flex gap-2">
+              <span class="status-chip" [ngClass]="hasReadySocialPlatform() ? 'status-live' : 'status-warning'">
+                {{ hasReadySocialPlatform() ? 'Có nền tảng sẵn sàng' : 'Thiếu cấu hình' }}
+              </span>
+              <button class="btn btn-app px-4" (click)="syncSocialPlatforms()" [disabled]="isSocialSyncing">
+                <span *ngIf="!isSocialSyncing">Đồng bộ social</span>
+                <span *ngIf="isSocialSyncing" class="d-inline-flex align-items-center gap-2">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  Đang đồng bộ
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6 col-xl-3" *ngFor="let status of socialStatuses">
+              <article class="soft-site-card h-100">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                  <div>
+                    <div class="fw-bold">{{ status.name }}</div>
+                    <div class="muted-text small">Sheet {{ status.worksheet }}</div>
+                  </div>
+                  <span class="status-chip" [ngClass]="getSocialStatusClass(status)">
+                    {{ status.ready ? 'Sẵn sàng' : (status.hasCredentials || status.configuredAssets > 0 ? 'Thiếu một phần' : 'Chưa cấu hình') }}
+                  </span>
+                </div>
+
+                <div class="muted-text mb-2">{{ status.message }}</div>
+                <div class="muted-text small">Tài nguyên cấu hình: {{ status.configuredAssets }}</div>
+
+                <div class="soft-list mt-3" *ngIf="status.warnings.length">
+                  <div class="soft-list-item" *ngFor="let warning of status.warnings">
+                    <span class="badge-dot"></span>
+                    <div class="muted-text">{{ warning }}</div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="alert alert-danger mt-3 mb-0" *ngIf="socialSyncError">{{ socialSyncError }}</div>
+          <div class="alert alert-success mt-3 mb-0" *ngIf="socialSyncResult">
+            {{ socialSyncResult.message }}
+          </div>
+
+          <div class="table-responsive mt-3" *ngIf="socialSyncResult?.results?.length">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Nền tảng</th>
+                  <th>Sheet</th>
+                  <th>Trạng thái</th>
+                  <th>Số dòng</th>
+                  <th>Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let result of socialSyncResult?.results">
+                  <td class="fw-semibold">{{ result.platform }}</td>
+                  <td>{{ result.worksheet }}</td>
+                  <td>{{ result.status }}</td>
+                  <td>{{ result.rows }}</td>
+                  <td>{{ result.detail }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-12">
+        <article class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div>
               <div class="card-title">Đồng bộ website</div>
               <div class="card-copy">
                 Đồng bộ Google Analytics 4 và Google Search Console vào
-                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>, dong bo WordPress posts vao
+                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>, đồng bộ WordPress posts vào
                 <strong>{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</strong>.
               </div>
             </div>
@@ -200,22 +282,22 @@
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Sheet dữ liệu gốc</strong>
-                <div class="muted-text">Sheet website lưu chỉ số Google theo từng trang và từng nguồn.</div>
+                <strong>Sheet website</strong>
+                <div class="muted-text">Lưu chỉ số Google theo từng trang và từng nguồn.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Sheet chuẩn hóa</strong>
-                <div class="muted-text">Sheet Post_web lưu bài viết WordPress và ánh xạ chỉ số GA4, GSC.</div>
+                <strong>Sheet Post_web</strong>
+                <div class="muted-text">Lưu bài viết WordPress và ánh xạ chỉ số GA4, GSC.</div>
               </div>
             </div>
             <div class="soft-list-item">
               <span class="badge-dot"></span>
               <div>
-                <strong>Sheet thông tin chi tiết</strong>
-                <div class="muted-text">Bảng điều khiển và AI sẽ đọc lại 2 sheet này để tổng hợp KPI và thông tin chi tiết.</div>
+                <strong>Sheet social riêng</strong>
+                <div class="muted-text">Facebook, LinkedIn, YouTube và TikTok sẽ có sheet riêng để AI đọc lại.</div>
               </div>
             </div>
           </div>

@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 
 from app.core.config import Settings, get_settings
 from app.models import (
@@ -8,33 +11,44 @@ from app.models import (
     ContentResponse,
     DashboardResponse,
     DataSyncResponse,
+    DailyReportLatestResponse,
     DailyReportSyncResponse,
     GoogleWebsiteStatusResponse,
     GoogleWebsiteSyncResponse,
     IntegrationsResponse,
     LocalAiAnalysisResponse,
     MarketingPromptRequest,
+    OAuthActionResponse,
+    OAuthProvidersResponse,
+    OAuthStartResponse,
     ReportsResponse,
     SchedulerResponse,
     SeoInsightsResponse,
     SettingsResponse,
+    SocialPlatformsStatusResponse,
+    SocialPlatformsSyncResponse,
 )
+from app.services.daily_report import get_latest_daily_report, sync_daily_report
+from app.services.google_website import get_google_website_status, sync_google_website_data
+from app.services.local_ai_analysis import get_local_ai_analysis
 from app.services.mock_data import (
-    get_analytics_data,
     get_campaigns_data,
     get_content_data,
-    get_dashboard_data,
     get_data_sync_data,
     get_integrations_data,
     get_reports_data,
     get_scheduler_data,
-    get_seo_insights_data,
     get_settings_data,
 )
-from app.services.daily_report import sync_daily_report
-from app.services.google_website import get_google_website_status, sync_google_website_data
-from app.services.local_ai_analysis import get_local_ai_analysis
+from app.services.oauth_connections import (
+    build_authorization_url,
+    disconnect_provider_connection,
+    get_oauth_provider_statuses,
+    handle_oauth_callback,
+    refresh_provider_connection,
+)
 from app.services.ollama_client import generate_marketing_copy
+from app.services.social_platforms import get_social_platforms_status, sync_social_platforms
 from app.services.website_reporting import (
     get_website_analytics_data,
     get_website_dashboard_data,
@@ -104,6 +118,67 @@ async def integrations() -> IntegrationsResponse:
     return get_integrations_data()
 
 
+@router.get("/oauth/providers", response_model=OAuthProvidersResponse)
+async def oauth_providers(settings: Settings = Depends(get_settings)) -> OAuthProvidersResponse:
+    return get_oauth_provider_statuses(settings)
+
+
+@router.get("/oauth/{provider}/start", response_model=OAuthStartResponse)
+async def oauth_start(
+    provider: str,
+    return_url: str | None = Query(default=None, alias="returnUrl"),
+    settings: Settings = Depends(get_settings),
+) -> OAuthStartResponse:
+    try:
+        return build_authorization_url(provider, settings, return_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/oauth/{provider}/callback")
+async def oauth_callback(
+    provider: str,
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = Query(default=None, alias="error_description"),
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    try:
+        redirect_url = await handle_oauth_callback(
+            provider=provider,
+            settings=settings,
+            state=state,
+            code=code,
+            error=error,
+            error_description=error_description,
+        )
+    except Exception as exc:
+        redirect_url = (
+            f"{settings.frontend_base_url.rstrip('/')}/integrations?"
+            f"{urlencode({'oauth_provider': provider, 'oauth_status': 'error', 'oauth_message': str(exc)})}"
+        )
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+
+@router.post("/oauth/{provider}/refresh", response_model=OAuthActionResponse)
+async def oauth_refresh(provider: str, settings: Settings = Depends(get_settings)) -> OAuthActionResponse:
+    try:
+        return await refresh_provider_connection(provider, settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Làm mới token thất bại: {exc}") from exc
+
+
+@router.delete("/oauth/{provider}", response_model=OAuthActionResponse)
+async def oauth_disconnect(provider: str, settings: Settings = Depends(get_settings)) -> OAuthActionResponse:
+    try:
+        return disconnect_provider_connection(provider, settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/reports", response_model=ReportsResponse)
 async def reports() -> ReportsResponse:
     return get_reports_data()
@@ -117,6 +192,16 @@ async def reports_daily_sync(settings: Settings = Depends(get_settings)) -> Dail
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tạo báo cáo ngày thất bại: {exc}") from exc
+
+
+@router.get("/reports/daily/latest", response_model=DailyReportLatestResponse)
+async def reports_daily_latest(settings: Settings = Depends(get_settings)) -> DailyReportLatestResponse:
+    try:
+        return get_latest_daily_report(settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Không thể đọc báo cáo ngày: {exc}") from exc
 
 
 @router.get("/settings/defaults", response_model=SettingsResponse)
@@ -144,3 +229,18 @@ async def google_website_sync(settings: Settings = Depends(get_settings)) -> Goo
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Đồng bộ Google thất bại: {exc}") from exc
+
+
+@router.get("/social/status", response_model=SocialPlatformsStatusResponse)
+async def social_status(settings: Settings = Depends(get_settings)) -> SocialPlatformsStatusResponse:
+    return get_social_platforms_status(settings)
+
+
+@router.post("/social/sync", response_model=SocialPlatformsSyncResponse)
+async def social_sync(settings: Settings = Depends(get_settings)) -> SocialPlatformsSyncResponse:
+    try:
+        return await sync_social_platforms(settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Đồng bộ social thất bại: {exc}") from exc

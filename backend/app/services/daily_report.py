@@ -10,7 +10,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 from app.core.config import Settings
-from app.models import DailyReportSyncResponse
+from app.models import DailyReportLatestResponse, DailyReportSyncResponse
 from app.services.google_website import (
     get_sheet_values,
     load_service_account_credentials,
@@ -390,4 +390,44 @@ async def sync_daily_report(settings: Settings) -> DailyReportSyncResponse:
         model=used_model,
         source=source,
         generatedAt=generated_at,
+    )
+
+
+def get_latest_daily_report(settings: Settings) -> DailyReportLatestResponse:
+    credentials = load_service_account_credentials(settings)
+    rows = get_sheet_values(settings, credentials, settings.daily_report_worksheet)
+    if not rows or len(rows) <= 1:
+        raise ValueError("Chưa có báo cáo ngày nào trong sheet reportday.")
+
+    header = rows[0]
+    records: list[dict[str, str]] = []
+    for row in rows[1:]:
+        record = {
+            column: row[index] if index < len(row) else ""
+            for index, column in enumerate(header)
+        }
+        if any(value for value in record.values()):
+            records.append(record)
+
+    if not records:
+        raise ValueError("Chưa có báo cáo ngày nào trong sheet reportday.")
+
+    latest_record = max(
+        records,
+        key=lambda item: (
+            item.get("ngay", ""),
+            item.get("generated_at", ""),
+        ),
+    )
+
+    return DailyReportLatestResponse(
+        reportDate=latest_record.get("ngay", ""),
+        tongQuat=latest_record.get("tong_quat", ""),
+        chiTietTungNenTang=latest_record.get("chi_tiet_tung_nen_tang", ""),
+        vanDeGapPhai=latest_record.get("van_de_gap_phai", ""),
+        deXuat=latest_record.get("de_xuat", ""),
+        model=latest_record.get("model_ai", ""),
+        source=latest_record.get("nguon_ai", ""),
+        generatedAt=latest_record.get("generated_at", ""),
+        worksheet=settings.daily_report_worksheet,
     )

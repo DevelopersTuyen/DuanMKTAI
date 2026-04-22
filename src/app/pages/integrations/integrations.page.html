@@ -1,31 +1,85 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Bản đồ tích hợp API</span>
-      <h2 class="fw-bold mb-3">Kết nối API mạng xã hội, GA4, GSC, Google Sheets và công cụ quy trình.</h2>
+      <span class="section-kicker">Quản lý kết nối OAuth</span>
+      <h2 class="fw-bold mb-3">Kết nối Google/YouTube, TikTok, Facebook và LinkedIn bằng luồng cấp quyền thật.</h2>
       <p class="card-copy mb-0">
-        Đây là lớp tích hợp để lấy dữ liệu chính xác, tự động hóa quy trình marketing và đồng bộ báo cáo.
+        Backend sẽ giữ token ở máy chủ, tự làm mới khi nền tảng hỗ trợ refresh token và trả trạng thái kết nối thật về giao diện.
       </p>
     </section>
 
+    <div class="alert alert-danger mb-4" *ngIf="loadError">{{ loadError }}</div>
+    <div class="alert mb-4" [ngClass]="noticeTone === 'success' ? 'alert-success' : 'alert-danger'" *ngIf="noticeMessage">
+      {{ noticeMessage }}
+    </div>
+
     <section class="row g-4">
-      <div class="col-md-6 col-xl-4" *ngFor="let integration of integrations">
-        <article class="glass-card p-4 h-100">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div class="card-title">{{ integration.name }}</div>
-            <span class="status-chip" [ngClass]="integration.statusClass">{{ integration.status }}</span>
+      <div class="col-md-6 col-xl-6" *ngFor="let provider of oauthProviders">
+        <article class="glass-card oauth-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <div class="card-title">{{ provider.label }}</div>
+              <div class="muted-text small">{{ provider.authType }}</div>
+            </div>
+            <span class="status-chip" [ngClass]="provider.statusClass">{{ provider.status }}</span>
           </div>
-          <div class="mb-2">
-            <div class="muted-text small">Tài nguyên quản lý</div>
-            <strong>{{ integration.accounts }}</strong>
+
+          <p class="card-copy mb-3">{{ provider.authNote }}</p>
+
+          <div class="oauth-metrics mb-3">
+            <div class="oauth-metric">
+              <div class="muted-text small">Tài khoản</div>
+              <strong>{{ provider.accountLabel || 'Chưa kết nối' }}</strong>
+            </div>
+            <div class="oauth-metric">
+              <div class="muted-text small">Tài nguyên</div>
+              <strong>{{ provider.assetSummary }}</strong>
+            </div>
+            <div class="oauth-metric">
+              <div class="muted-text small">Sheet đích</div>
+              <strong>{{ provider.worksheet }}</strong>
+            </div>
+            <div class="oauth-metric">
+              <div class="muted-text small">Hết hạn token</div>
+              <strong>{{ formatDate(provider.expiresAt) }}</strong>
+            </div>
           </div>
-          <div class="mb-2">
-            <div class="muted-text small">Phạm vi</div>
-            <span>{{ integration.scope }}</span>
+
+          <div class="soft-list mb-3" *ngIf="provider.warnings.length">
+            <div class="soft-list-item" *ngFor="let warning of provider.warnings">
+              <span class="badge-dot"></span>
+              <div class="muted-text">{{ warning }}</div>
+            </div>
           </div>
-          <div>
-            <div class="muted-text small">Lần đồng bộ gần nhất</div>
-            <strong>{{ integration.lastSync }}</strong>
+
+          <div class="muted-text small mb-3">
+            Kết nối lúc: {{ formatDate(provider.connectedAt) }}
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-app" (click)="connect(provider)" [disabled]="isBusy(provider)">
+              <span *ngIf="!isBusy(provider)">{{ provider.connected ? 'Kết nối lại' : 'Kết nối' }}</span>
+              <span *ngIf="isBusy(provider)" class="d-inline-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm"></span>
+                Đang xử lý
+              </span>
+            </button>
+
+            <button
+              class="btn btn-outline-light"
+              (click)="refresh(provider)"
+              [disabled]="isBusy(provider) || !provider.supportsRefresh"
+            >
+              Làm mới token
+            </button>
+
+            <button
+              class="btn btn-outline-danger"
+              (click)="disconnect(provider)"
+              [disabled]="isBusy(provider) || !provider.connected"
+            >
+              Gỡ kết nối
+            </button>
           </div>
         </article>
       </div>

@@ -2,10 +2,110 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <span class="section-kicker">Báo cáo tự động</span>
-      <h2 class="fw-bold mb-3">Báo cáo tổng hợp KPI, thông tin chi tiết và dự báo cho từng nhóm liên quan.</h2>
+      <h2 class="fw-bold mb-3">Báo cáo tổng hợp KPI, thông tin chi tiết và đề xuất theo ngày cho đội ngũ vận hành.</h2>
       <p class="card-copy mb-0">
-        Báo cáo có thể dựa vào luồng email, Google Sheets và bảng điều khiển nội bộ để đội ngũ cập nhật tình hình theo thời gian thực.
+        Trang này đọc trực tiếp báo cáo ngày mới nhất từ sheet <strong>reportday</strong> và cho phép tạo lại báo cáo ngay trong app.
       </p>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-12">
+        <article class="glass-card p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div>
+              <div class="card-title">Báo cáo ngày mới nhất</div>
+              <div class="card-copy">
+                Dùng AI local để tổng hợp dữ liệu thật hiện có và ghi vào Google Sheet, sau đó đọc lại ngay trên giao diện.
+              </div>
+            </div>
+
+            <button class="btn btn-app px-4" (click)="syncDailyReport()" [disabled]="isSyncingDailyReport">
+              <span *ngIf="!isSyncingDailyReport">Tạo báo cáo ngày</span>
+              <span *ngIf="isSyncingDailyReport" class="d-inline-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm"></span>
+                Đang tạo báo cáo
+              </span>
+            </button>
+          </div>
+
+          <div class="alert alert-danger mb-3" *ngIf="dailyReportSyncError">{{ dailyReportSyncError }}</div>
+          <div class="alert alert-success mb-3" *ngIf="dailyReportSyncResult">
+            {{ dailyReportSyncResult.message }} Ngày báo cáo: {{ dailyReportSyncResult.reportDate }}. Model: {{ dailyReportSyncResult.model }}.
+          </div>
+          <div class="alert alert-warning mb-0" *ngIf="latestDailyReportError && !latestDailyReport">{{ latestDailyReportError }}</div>
+
+          <div *ngIf="latestDailyReport" class="report-layout">
+            <div class="report-meta row g-3 mb-3">
+              <div class="col-md-3">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Ngày báo cáo</strong>
+                    <div class="muted-text">{{ latestDailyReport.reportDate }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Model AI</strong>
+                    <div class="muted-text">{{ latestDailyReport.model }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Nguồn</strong>
+                    <div class="muted-text">{{ latestDailyReport.source }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Tạo lúc</strong>
+                    <div class="muted-text">{{ latestDailyReport.generatedAt }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-xl-6">
+                <article class="glass-card report-card p-4 h-100">
+                  <div class="card-title mb-3">Tổng quát</div>
+                  <div class="report-text">{{ latestDailyReport.tongQuat }}</div>
+                </article>
+              </div>
+
+              <div class="col-xl-6">
+                <article class="glass-card report-card p-4 h-100">
+                  <div class="card-title mb-3">Vấn đề gặp phải</div>
+                  <div class="report-text">{{ latestDailyReport.vanDeGapPhai }}</div>
+                </article>
+              </div>
+
+              <div class="col-12">
+                <article class="glass-card report-card p-4">
+                  <div class="card-title mb-3">Chi tiết từng nền tảng</div>
+                  <div class="report-text">{{ latestDailyReport.chiTietTungNenTang }}</div>
+                </article>
+              </div>
+
+              <div class="col-12">
+                <article class="glass-card report-card p-4">
+                  <div class="card-title mb-3">Đề xuất</div>
+                  <div class="report-text">{{ latestDailyReport.deXuat }}</div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section class="row g-4">
