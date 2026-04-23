@@ -43,11 +43,22 @@ yarn-error.log
 /backend/.env
 /backend/*.json
 /backend/storage/
-/backend/ComfyUI/*
-!/backend/ComfyUI/.gitignore
-!/backend/ComfyUI/README.md
-!/backend/ComfyUI/run_comfyui.ps1
-!/backend/ComfyUI/comfyui_text2img_api.json
+/backend/ComfyUI/.venv/
+/backend/ComfyUI/venv*/
+/backend/ComfyUI/models/
+/backend/ComfyUI/output/
+/backend/ComfyUI/input/
+/backend/ComfyUI/temp/
+/backend/ComfyUI/user/
+/backend/ComfyUI/__pycache__/
+/backend/ComfyUI/**/*.pyc
+/backend/ComfyUI/**/*.pyo
+/backend/ComfyUI/**/*.pyd
+/backend/ComfyUI/**/*.log
+/backend/ComfyUI/extra_model_paths.yaml
+/backend/ComfyUI/openapi.yaml
+/backend/ComfyUI/filtered-openapi.yaml
+/backend/ComfyUI/uv.lock
 
 # IDEs and editors
 .idea/
