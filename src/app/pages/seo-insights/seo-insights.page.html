@@ -6,58 +6,135 @@
       <p class="card-copy mb-0">
         Nếu Search Console chưa cấp quyền cho service account, trang này sẽ hiển thị đúng trạng thái thiếu dữ liệu thay vì dữ liệu mô phỏng.
       </p>
+      <div class="utility-actions mt-3">
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="refreshSeo()">Làm mới</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copyKeywordSummary()">Sao chép SEO</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="downloadSeoSnapshot()">Tải snapshot</button>
+      </div>
+      <div class="alert alert-success mt-3 mb-0" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+      <div class="alert alert-warning mt-3 mb-0" *ngIf="utilityError">{{ utilityError }}</div>
     </section>
 
-    <section class="row g-4">
-      <div class="col-xl-8">
-        <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="card-title mb-1">Bảng cơ hội SEO theo trang</div>
-          <div class="card-copy mb-3">Tổng hợp trang từ GSC: lượt nhấp, lượt hiển thị, CTR, vị trí và hành động đề xuất.</div>
-
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Trang</th>
-                  <th>Lượt nhấp</th>
-                  <th>Lượt hiển thị</th>
-                  <th>CTR</th>
-                  <th>Vị trí</th>
-                  <th>Hành động đề xuất</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let keyword of keywords">
-                  <td class="fw-semibold">{{ keyword.keyword }}</td>
-                  <td>{{ keyword.clicks }}</td>
-                  <td>{{ keyword.impressions }}</td>
-                  <td>{{ keyword.ctr }}%</td>
-                  <td>{{ keyword.position }}</td>
-                  <td>{{ keyword.action }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="muted-text" *ngIf="!keywords.length">
-            Chưa có dữ liệu Search Console thật để hiển thị bảng SEO theo trang. Hãy kiểm tra quyền truy cập của service account.
-          </div>
-        </article>
+    <section class="page-state" *ngIf="isLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
       </div>
+    </section>
 
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Ghi chú chiến lược SEO</div>
-          <div class="soft-list">
-            <div class="soft-list-item" *ngFor="let recommendation of recommendations">
-              <span class="badge-dot"></span>
+    <section class="page-state" *ngIf="!isLoading && loadError">
+      <div class="page-state-box">
+        <div class="fw-semibold mb-2">Không tải được dữ liệu SEO</div>
+        <div class="muted-text">{{ loadError }}</div>
+      </div>
+    </section>
+
+    <ng-container *ngIf="!isLoading && !loadError">
+      <section class="row g-3 mb-4" *ngIf="websiteSummaries.length">
+        <div class="col-md-6 col-xl-4" *ngFor="let site of websiteSummaries">
+          <article class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
               <div>
-                <strong>{{ recommendation.title }}</strong>
-                <div class="muted-text">{{ recommendation.detail }}</div>
+                <div class="card-title">{{ site.site }}</div>
+                <div class="muted-text small">{{ site.siteUrl || 'Chưa có URL chuẩn' }}</div>
+              </div>
+              <span class="status-chip" [ngClass]="site.gscSiteUrl ? 'status-live' : 'status-warning'">{{ site.syncStatus }}</span>
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <div class="muted-text small">Clicks</div>
+                <strong>{{ site.clicks }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">CTR</div>
+                <strong>{{ site.ctr }}%</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Position</div>
+                <strong>{{ site.position }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Trang SEO</div>
+                <strong>{{ site.trackedPages }}</strong>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+            <div class="muted-text small mt-3">GSC: {{ site.gscSiteUrl || 'Chưa map' }}</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4">
+        <div class="col-xl-8">
+          <article class="glass-card table-surface p-3 p-lg-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title mb-1">Bảng cơ hội SEO theo trang</div>
+                <div class="card-copy">Tổng hợp trang từ GSC: lượt nhấp, lượt hiển thị, CTR, vị trí và hành động đề xuất.</div>
+              </div>
+              <span class="pill">Trang {{ currentPage }}/{{ totalPages }}</span>
+            </div>
+
+            <div class="table-responsive" *ngIf="keywords.length; else emptyKeywords">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Trang</th>
+                    <th>Lượt nhấp</th>
+                    <th>Lượt hiển thị</th>
+                    <th>CTR</th>
+                    <th>Vị trí</th>
+                    <th>Hành động đề xuất</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let keyword of pagedKeywords">
+                    <td class="fw-semibold">{{ keyword.keyword }}</td>
+                    <td>{{ keyword.clicks }}</td>
+                    <td>{{ keyword.impressions }}</td>
+                    <td>{{ keyword.ctr }}%</td>
+                    <td>{{ keyword.position }}</td>
+                    <td>{{ keyword.action }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ng-template #emptyKeywords>
+              <div class="muted-text">
+                Chưa có dữ liệu Search Console thật để hiển thị bảng SEO theo trang. Hãy kiểm tra quyền truy cập của service account.
+              </div>
+            </ng-template>
+
+            <div class="pagination-shell" *ngIf="keywords.length > pageSize">
+              <div class="pagination-meta">
+                Hiển thị {{ (currentPage - 1) * pageSize + 1 }} -
+                {{ ((currentPage - 1) * pageSize) + pagedKeywords.length }} / {{ keywords.length }} trang
+              </div>
+              <div class="pagination-actions">
+                <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">Trước</button>
+                <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">Sau</button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="col-xl-4">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-3">Ghi chú chiến lược SEO</div>
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let recommendation of recommendations">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>{{ recommendation.title }}</strong>
+                  <div class="muted-text">{{ recommendation.detail }}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </ng-container>
   </div>
 </ion-content>

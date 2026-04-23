@@ -109,6 +109,19 @@ export interface ScheduleItem {
   audience: string;
 }
 
+export interface ScheduleRule {
+  id: string;
+  title: string;
+  channel: string;
+  publishMode: 'manual' | 'auto';
+  startAt: string;
+  repeatType: 'none' | 'daily' | 'weekly' | 'monthly';
+  repeatInterval: number;
+  daysOfWeek: number[];
+  active: boolean;
+  note: string | null;
+}
+
 export interface CampaignOverview {
   name: string;
   objective: string;
@@ -143,11 +156,27 @@ export interface ReportSnapshot {
   summary: string;
 }
 
+export interface WebsiteSummary {
+  site: string;
+  siteUrl: string | null;
+  gaPropertyId: string | null;
+  gscSiteUrl: string | null;
+  pageViews: string;
+  sessions: string;
+  posts: number;
+  trackedPages: number;
+  clicks: number;
+  ctr: number;
+  position: number;
+  syncStatus: string;
+}
+
 export interface DashboardResponse {
   kpis: DashboardKpi[];
   performanceTrend: TrendPoint[];
   channelBreakdown: ChannelShare[];
   syncChannels: SyncChannel[];
+  websiteSummaries: WebsiteSummary[];
   recommendations: Recommendation[];
 }
 
@@ -215,6 +244,25 @@ export interface ContentDraftGenerateResponse {
   draft: ContentDraft;
 }
 
+export interface ContentDraftGenerationStatusResponse {
+  jobId: string;
+  status: 'queued' | 'running' | 'completed' | 'error';
+  progress: number;
+  currentStep: string;
+  stepLabel: string;
+  message: string;
+  startedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  error: string | null;
+  draft: ContentDraft | null;
+}
+
+export interface ContentDraftGenerationStartResponse {
+  message: string;
+  job: ContentDraftGenerationStatusResponse;
+}
+
 export interface ContentDraftConfirmResponse {
   message: string;
   draft: ContentDraft;
@@ -225,8 +273,30 @@ export interface ContentDraftListResponse {
   drafts: ContentDraft[];
 }
 
+export interface ContentDraftDeleteResponse {
+  status: 'success';
+  message: string;
+  draftId: string;
+  worksheet: string;
+}
+
 export interface SchedulerResponse {
+  mode: 'manual' | 'auto';
+  timezone: string;
+  schedules: ScheduleRule[];
   queue: ScheduleItem[];
+}
+
+export interface SchedulerUpdateRequest {
+  mode: 'manual' | 'auto';
+  timezone: string;
+  schedules: ScheduleRule[];
+}
+
+export interface SchedulerSaveResponse {
+  status: 'success';
+  message: string;
+  scheduler: SchedulerResponse;
 }
 
 export interface CampaignsResponse {
@@ -235,6 +305,7 @@ export interface CampaignsResponse {
 
 export interface SeoInsightsResponse {
   keywords: KeywordInsight[];
+  websiteSummaries: WebsiteSummary[];
   recommendations: Recommendation[];
 }
 
@@ -269,13 +340,39 @@ export interface DailyReportLatestResponse {
   worksheet: string;
 }
 
+export interface DailyReportHistoryItem {
+  reportDate: string;
+  tongQuat: string;
+  model: string;
+  source: string;
+  generatedAt: string;
+}
+
+export interface DailyReportHistoryResponse {
+  worksheet: string;
+  reports: DailyReportHistoryItem[];
+}
+
+export interface DailyReportDeleteResponse {
+  status: 'success';
+  message: string;
+  reportDate: string;
+  worksheet: string;
+}
+
 export interface SettingsDefaultsResponse {
   apiBaseUrl: string;
   ollamaBaseUrl: string;
   ollamaModel: string;
   spreadsheetId: string;
   worksheet: string;
+  syncMode: 'interval' | 'scheduled';
+  syncStartTime: string;
   syncIntervalMinutes: number;
+  syncDaysOfWeek: number[];
+  syncLoopEnabled: boolean;
+  syncWebsiteEnabled: boolean;
+  syncSocialEnabled: boolean;
   autoSync: boolean;
   autoRecommend: boolean;
   autoSchedule: boolean;
@@ -287,7 +384,13 @@ export interface SettingsUpdateRequest {
   ollamaModel: string;
   spreadsheetId: string;
   worksheet: string;
+  syncMode: 'interval' | 'scheduled';
+  syncStartTime: string;
   syncIntervalMinutes: number;
+  syncDaysOfWeek: number[];
+  syncLoopEnabled: boolean;
+  syncWebsiteEnabled: boolean;
+  syncSocialEnabled: boolean;
   autoSync: boolean;
   autoRecommend: boolean;
   autoSchedule: boolean;
@@ -326,6 +429,14 @@ export interface GoogleWebsiteStatusResponse {
   wordpressWorksheet: string;
   analyticsPropertyId: string | null;
   searchConsoleSiteUrl: string | null;
+  searchConsoleSites: string[];
+  siteMappings: Array<{
+    siteName: string;
+    wordpressBaseUrl: string;
+    wordpressHost: string;
+    gscSiteUrl: string;
+    status: string;
+  }>;
   message: string;
   warnings: string[];
 }
@@ -465,16 +576,28 @@ export class MarketingData {
     goal: string;
     tone: string;
     brief: string;
-  }): Observable<ContentDraftGenerateResponse> {
-    return this.http.post<ContentDraftGenerateResponse>(`${this.apiBaseUrl}/content/drafts/generate`, payload);
+  }): Observable<ContentDraftGenerationStartResponse> {
+    return this.http.post<ContentDraftGenerationStartResponse>(`${this.apiBaseUrl}/content/drafts/generate`, payload);
+  }
+
+  getContentDraftGenerationStatus(jobId: string): Observable<ContentDraftGenerationStatusResponse> {
+    return this.http.get<ContentDraftGenerationStatusResponse>(`${this.apiBaseUrl}/content/drafts/generate/${jobId}`);
   }
 
   confirmContentDraft(draftId: string): Observable<ContentDraftConfirmResponse> {
     return this.http.post<ContentDraftConfirmResponse>(`${this.apiBaseUrl}/content/drafts/${draftId}/confirm`, {});
   }
 
+  deleteContentDraft(draftId: string): Observable<ContentDraftDeleteResponse> {
+    return this.http.delete<ContentDraftDeleteResponse>(`${this.apiBaseUrl}/content/drafts/${draftId}`);
+  }
+
   getScheduler(): Observable<SchedulerResponse> {
     return this.http.get<SchedulerResponse>(`${this.apiBaseUrl}/scheduler`);
+  }
+
+  saveScheduler(payload: SchedulerUpdateRequest): Observable<SchedulerSaveResponse> {
+    return this.http.put<SchedulerSaveResponse>(`${this.apiBaseUrl}/scheduler`, payload);
   }
 
   getCampaigns(): Observable<CampaignsResponse> {
@@ -497,8 +620,16 @@ export class MarketingData {
     return this.http.get<DailyReportLatestResponse>(`${this.apiBaseUrl}/reports/daily/latest`);
   }
 
+  getDailyReportHistory(): Observable<DailyReportHistoryResponse> {
+    return this.http.get<DailyReportHistoryResponse>(`${this.apiBaseUrl}/reports/daily/history`);
+  }
+
   syncDailyReport(): Observable<DailyReportSyncResponse> {
     return this.http.post<DailyReportSyncResponse>(`${this.apiBaseUrl}/reports/daily/sync`, {});
+  }
+
+  deleteDailyReport(reportDate: string): Observable<DailyReportDeleteResponse> {
+    return this.http.delete<DailyReportDeleteResponse>(`${this.apiBaseUrl}/reports/daily/${reportDate}`);
   }
 
   getSettingsDefaults(): Observable<SettingsDefaultsResponse> {

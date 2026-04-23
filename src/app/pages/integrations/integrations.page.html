@@ -1,11 +1,15 @@
 <ion-content class="page-shell" [fullscreen]="true">
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
-      <span class="section-kicker">Quản lý kết nối OAuth</span>
-      <h2 class="fw-bold mb-3">Kết nối Google/YouTube, TikTok, Facebook và LinkedIn bằng luồng cấp quyền thật.</h2>
+      <span class="section-kicker">Quản lý kết nối</span>
+      <h2 class="fw-bold mb-3">Tách riêng kết nối Google Web và các nền tảng OAuth để vận hành rõ ràng hơn.</h2>
       <p class="card-copy mb-0">
-        Backend sẽ giữ token ở máy chủ, tự làm mới khi nền tảng hỗ trợ refresh token và trả trạng thái kết nối thật về giao diện.
+        Google Web quản lý WordPress, GA4, GSC và Google Sheet. Các kết nối OAuth còn lại dùng riêng cho YouTube, TikTok, Facebook và LinkedIn.
       </p>
+      <div class="utility-actions mt-3">
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="refreshIntegrations()">Làm mới</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copyConnectionSummary()">Sao chép tóm tắt</button>
+      </div>
     </section>
 
     <div class="alert alert-danger mb-4" *ngIf="loadError">{{ loadError }}</div>
@@ -13,76 +17,186 @@
       {{ noticeMessage }}
     </div>
 
-    <section class="row g-4">
-      <div class="col-md-6 col-xl-6" *ngFor="let provider of oauthProviders">
-        <article class="glass-card oauth-card p-4 h-100">
-          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-            <div>
-              <div class="card-title">{{ provider.label }}</div>
-              <div class="muted-text small">{{ provider.authType }}</div>
-            </div>
-            <span class="status-chip" [ngClass]="provider.statusClass">{{ provider.status }}</span>
-          </div>
-
-          <p class="card-copy mb-3">{{ provider.authNote }}</p>
-
-          <div class="oauth-metrics mb-3">
-            <div class="oauth-metric">
-              <div class="muted-text small">Tài khoản</div>
-              <strong>{{ provider.accountLabel || 'Chưa kết nối' }}</strong>
-            </div>
-            <div class="oauth-metric">
-              <div class="muted-text small">Tài nguyên</div>
-              <strong>{{ provider.assetSummary }}</strong>
-            </div>
-            <div class="oauth-metric">
-              <div class="muted-text small">Sheet đích</div>
-              <strong>{{ provider.worksheet }}</strong>
-            </div>
-            <div class="oauth-metric">
-              <div class="muted-text small">Hết hạn token</div>
-              <strong>{{ formatDate(provider.expiresAt) }}</strong>
-            </div>
-          </div>
-
-          <div class="soft-list mb-3" *ngIf="provider.warnings.length">
-            <div class="soft-list-item" *ngFor="let warning of provider.warnings">
-              <span class="badge-dot"></span>
-              <div class="muted-text">{{ warning }}</div>
-            </div>
-          </div>
-
-          <div class="muted-text small mb-3">
-            Kết nối lúc: {{ formatDate(provider.connectedAt) }}
-          </div>
-
-          <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-app" (click)="connect(provider)" [disabled]="isBusy(provider)">
-              <span *ngIf="!isBusy(provider)">{{ provider.connected ? 'Kết nối lại' : 'Kết nối' }}</span>
-              <span *ngIf="isBusy(provider)" class="d-inline-flex align-items-center gap-2">
-                <span class="spinner-border spinner-border-sm"></span>
-                Đang xử lý
-              </span>
-            </button>
-
-            <button
-              class="btn btn-outline-light"
-              (click)="refresh(provider)"
-              [disabled]="isBusy(provider) || !provider.supportsRefresh"
-            >
-              Làm mới token
-            </button>
-
-            <button
-              class="btn btn-outline-danger"
-              (click)="disconnect(provider)"
-              [disabled]="isBusy(provider) || !provider.connected"
-            >
-              Gỡ kết nối
-            </button>
-          </div>
-        </article>
+    <section class="page-state" *ngIf="isLoading || isWebsiteLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
       </div>
     </section>
+
+    <ng-container *ngIf="!isLoading && !isWebsiteLoading">
+      <section class="row g-4 mb-4">
+        <div class="col-12">
+          <article class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3 flex-wrap">
+              <div>
+                <div class="card-title">Google Web</div>
+                <div class="card-copy">
+                  Tách riêng kết nối website để quản lý WordPress, Google Analytics, Search Console và Google Sheet.
+                </div>
+              </div>
+              <span
+                class="status-chip"
+                [ngClass]="googleWebsiteStatus?.ready ? 'status-live' : 'status-warning'">
+                {{ googleWebsiteStatus?.ready ? 'Sẵn sàng' : 'Cần cấu hình' }}
+              </span>
+            </div>
+
+            <div class="alert alert-danger mb-3" *ngIf="googleWebsiteError">{{ googleWebsiteError }}</div>
+
+            <ng-container *ngIf="googleWebsiteStatus as webStatus">
+              <div class="row g-3 mb-3">
+                <div class="col-md-6 col-xl-3">
+                  <div class="oauth-metric">
+                    <div class="muted-text small">Spreadsheet</div>
+                    <strong>{{ webStatus.spreadsheetId }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                  <div class="oauth-metric">
+                    <div class="muted-text small">Website sheet</div>
+                    <strong>{{ webStatus.worksheet }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                  <div class="oauth-metric">
+                    <div class="muted-text small">Post sheet</div>
+                    <strong>{{ webStatus.wordpressWorksheet }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                  <div class="oauth-metric">
+                    <div class="muted-text small">WordPress site</div>
+                    <strong>{{ webStatus.wordpressSitesCount }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-4">
+                <div class="col-lg-6">
+                  <div class="card-title mb-2">Search Console site</div>
+                  <div class="soft-list" *ngIf="webStatus.searchConsoleSites.length; else emptyGscSites">
+                    <div class="soft-list-item" *ngFor="let site of webStatus.searchConsoleSites">
+                      <span class="badge-dot"></span>
+                      <div class="muted-text">{{ site }}</div>
+                    </div>
+                  </div>
+                  <ng-template #emptyGscSites>
+                    <div class="muted-text">Chưa có site Search Console nào được cấu hình.</div>
+                  </ng-template>
+                </div>
+
+                <div class="col-lg-6">
+                  <div class="card-title mb-2">Map website và GSC</div>
+                  <div class="soft-list" *ngIf="webStatus.siteMappings.length; else emptyMappings">
+                    <div class="soft-list-item" *ngFor="let item of webStatus.siteMappings">
+                      <span class="badge-dot"></span>
+                      <div class="w-100">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                          <strong>{{ item.siteName }}</strong>
+                          <span class="status-chip" [ngClass]="item.gscSiteUrl ? 'status-live' : 'status-warning'">{{ item.status }}</span>
+                        </div>
+                        <div class="muted-text small mt-1">WP: {{ item.wordpressBaseUrl }}</div>
+                        <div class="muted-text small">GSC: {{ item.gscSiteUrl || 'Chưa map' }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <ng-template #emptyMappings>
+                    <div class="muted-text">Chưa có dữ liệu map giữa website và Search Console.</div>
+                  </ng-template>
+                </div>
+              </div>
+
+              <div class="soft-list mt-3" *ngIf="webStatus.warnings.length">
+                <div class="soft-list-item" *ngFor="let warning of webStatus.warnings">
+                  <span class="badge-dot"></span>
+                  <div class="muted-text">{{ warning }}</div>
+                </div>
+              </div>
+            </ng-container>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4">
+        <div class="col-md-6 col-xl-6" *ngFor="let provider of pagedProviders">
+          <article class="glass-card oauth-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <div class="card-title">{{ getProviderLabel(provider) }}</div>
+                <div class="muted-text small">{{ provider.authType }}</div>
+              </div>
+              <span class="status-chip" [ngClass]="provider.statusClass">{{ provider.status }}</span>
+            </div>
+
+            <p class="card-copy mb-3">{{ provider.authNote }}</p>
+
+            <div class="oauth-metrics mb-3">
+              <div class="oauth-metric">
+                <div class="muted-text small">Tài khoản</div>
+                <strong>{{ provider.accountLabel || 'Chưa kết nối' }}</strong>
+              </div>
+              <div class="oauth-metric">
+                <div class="muted-text small">Tài nguyên</div>
+                <strong>{{ provider.assetSummary }}</strong>
+              </div>
+              <div class="oauth-metric">
+                <div class="muted-text small">Sheet đích</div>
+                <strong>{{ provider.worksheet }}</strong>
+              </div>
+              <div class="oauth-metric">
+                <div class="muted-text small">Hết hạn token</div>
+                <strong>{{ formatDate(provider.expiresAt) }}</strong>
+              </div>
+            </div>
+
+            <div class="soft-list mb-3" *ngIf="provider.warnings.length">
+              <div class="soft-list-item" *ngFor="let warning of provider.warnings">
+                <span class="badge-dot"></span>
+                <div class="muted-text">{{ warning }}</div>
+              </div>
+            </div>
+
+            <div class="utility-actions mb-3" *ngIf="provider.warnings.length">
+              <button class="btn btn-outline-light btn-sm" type="button" (click)="copyProviderWarnings(provider)">Sao chép cảnh báo</button>
+            </div>
+
+            <div class="muted-text small mb-3">Kết nối lúc: {{ formatDate(provider.connectedAt) }}</div>
+
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-app" (click)="connect(provider)" [disabled]="isBusy(provider)">
+                <span *ngIf="!isBusy(provider)">{{ provider.connected ? 'Kết nối lại' : 'Kết nối' }}</span>
+                <span *ngIf="isBusy(provider)" class="d-inline-flex align-items-center gap-2">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  Đang xử lý
+                </span>
+              </button>
+
+              <button class="btn btn-outline-light" (click)="refresh(provider)" [disabled]="isBusy(provider) || !provider.supportsRefresh">
+                Làm mới token
+              </button>
+
+              <button class="btn btn-outline-danger" (click)="disconnect(provider)" [disabled]="isBusy(provider) || !provider.connected">
+                Gỡ kết nối
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="pagination-shell" *ngIf="oauthProviders.length > pageSize">
+        <div class="pagination-meta">
+          Hiển thị {{ (currentPage - 1) * pageSize + 1 }} -
+          {{ ((currentPage - 1) * pageSize) + pagedProviders.length }} / {{ oauthProviders.length }} kết nối
+        </div>
+        <div class="pagination-actions">
+          <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">Trước</button>
+          <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">Sau</button>
+        </div>
+      </div>
+    </ng-container>
   </div>
 </ion-content>

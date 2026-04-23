@@ -2,94 +2,136 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <span class="section-kicker">Phân tích hiệu suất</span>
-      <h2 class="fw-bold mb-3">Phân tích lượt xem trang, số phiên và bài viết WordPress theo từng website.</h2>
+      <h2 class="fw-bold mb-3">Phân tích lượt xem trang, số phiên và bài viết WordPress theo từng website đang đồng bộ thật.</h2>
       <p class="card-copy mb-0">
-        Các KPI này đang đọc từ dữ liệu website thật đã đồng bộ lên sheet, không còn là dữ liệu mô phỏng đối với phần website.
+        Các KPI tại đây đang đọc từ dữ liệu website thật đã được backend tổng hợp, không còn dùng dữ liệu mô phỏng cho phần website.
       </p>
+      <div class="utility-actions mt-3">
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="refreshAnalytics()">Làm mới</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copyTopContentSummary()">Sao chép nội dung</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="downloadAnalyticsSnapshot()">Tải snapshot</button>
+      </div>
+      <div class="alert alert-success mt-3 mb-0" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+      <div class="alert alert-warning mt-3 mb-0" *ngIf="utilityError">{{ utilityError }}</div>
     </section>
 
-    <section class="row g-4 mb-4">
-      <div class="col-md-6 col-xl-3" *ngFor="let platform of platforms">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">{{ platform.platform }}</div>
-          <div class="metric-label">Lượt xem trang</div>
-          <div class="metric-value mb-3">{{ platform.reach }}</div>
-          <div class="mb-3">
-            <div class="d-flex justify-content-between mb-1">
-              <span class="muted-text">Tương tác</span>
-              <strong>{{ platform.engagementRate }}%</strong>
-            </div>
-            <div class="progress">
-              <div class="progress-bar bg-app-teal" [style.width.%]="platform.engagementRate * 10"></div>
-            </div>
-          </div>
-          <div class="d-flex justify-content-between">
-            <div>
-              <div class="muted-text small">CTR</div>
-              <strong>{{ platform.ctr }}%</strong>
-            </div>
-            <div>
-              <div class="muted-text small">Chất lượng</div>
-              <strong>{{ platform.conversionRate }}%</strong>
-            </div>
-          </div>
-        </article>
+    <section class="page-state" *ngIf="isLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
       </div>
     </section>
 
-    <section class="row g-4">
-      <div class="col-xl-8">
-        <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="card-title mb-1">Nội dung WordPress nổi bật</div>
-          <div class="card-copy mb-3">Bảng tổng hợp các bài viết website thật đang có lưu lượng cao nhất.</div>
-
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Tiêu đề</th>
-                  <th>Nền tảng</th>
-                  <th>Định dạng</th>
-                  <th>Lượt xem</th>
-                  <th>CTR</th>
-                  <th>Tương tác</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let item of topContents">
-                  <td class="fw-semibold">{{ item.title }}</td>
-                  <td>{{ item.platform }}</td>
-                  <td>{{ item.format }}</td>
-                  <td>{{ item.views }}</td>
-                  <td>{{ item.ctr }}%</td>
-                  <td>{{ item.engagementRate }}%</td>
-                  <td>
-                    <span class="status-chip" [ngClass]="item.statusClass">{{ item.statusLabel }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
+    <section class="page-state" *ngIf="!isLoading && loadError">
+      <div class="page-state-box">
+        <div class="fw-semibold mb-2">Không tải được dữ liệu phân tích</div>
+        <div class="muted-text">{{ loadError }}</div>
       </div>
+    </section>
 
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Thông tin chi tiết website</div>
-          <div class="card-copy mb-3">Tổng hợp từ domain dẫn đầu, trang nổi bật và bài viết WordPress cần tối ưu.</div>
-
-          <div class="soft-list">
-            <div class="soft-list-item" *ngFor="let recommendation of recommendations">
-              <span class="badge-dot"></span>
-              <div>
-                <div class="fw-bold mb-1">{{ recommendation.title }}</div>
-                <div class="muted-text">{{ recommendation.detail }}</div>
+    <ng-container *ngIf="!isLoading && !loadError">
+      <section class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3" *ngFor="let platform of platforms">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-3">{{ platform.platform }}</div>
+            <div class="metric-label">Lượt xem trang</div>
+            <div class="metric-value mb-3">{{ platform.reach }}</div>
+            <div class="mb-3">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="muted-text">Tương tác</span>
+                <strong>{{ platform.engagementRate }}%</strong>
+              </div>
+              <div class="progress">
+                <div class="progress-bar bg-app-teal" [style.width.%]="platform.engagementRate * 10"></div>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="muted-text small">CTR</div>
+                <strong>{{ platform.ctr }}%</strong>
+              </div>
+              <div>
+                <div class="muted-text small">Chất lượng</div>
+                <strong>{{ platform.conversionRate }}%</strong>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4">
+        <div class="col-xl-8">
+          <article class="glass-card table-surface p-3 p-lg-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title mb-1">Nội dung WordPress nổi bật</div>
+                <div class="card-copy">Bảng tổng hợp các bài viết website thật đang có lưu lượng cao nhất.</div>
+              </div>
+              <span class="pill">Trang {{ currentPage }}/{{ totalPages }}</span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Tiêu đề</th>
+                    <th>Nền tảng</th>
+                    <th>Định dạng</th>
+                    <th>Lượt xem</th>
+                    <th>CTR</th>
+                    <th>Tương tác</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of pagedContents">
+                    <td class="fw-semibold">{{ item.title }}</td>
+                    <td>{{ item.platform }}</td>
+                    <td>{{ item.format }}</td>
+                    <td>{{ item.views }}</td>
+                    <td>{{ item.ctr }}%</td>
+                    <td>{{ item.engagementRate }}%</td>
+                    <td>
+                      <span class="status-chip" [ngClass]="item.statusClass">{{ item.statusLabel }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-shell" *ngIf="topContents.length > pageSize">
+              <div class="pagination-meta">
+                Hiển thị {{ (currentPage - 1) * pageSize + 1 }} -
+                {{ ((currentPage - 1) * pageSize) + pagedContents.length }} / {{ topContents.length }} nội dung
+              </div>
+              <div class="pagination-actions">
+                <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">Trước</button>
+                <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">Sau</button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="col-xl-4">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-1">Thông tin chi tiết website</div>
+            <div class="card-copy mb-3">Tổng hợp từ domain dẫn đầu, trang nổi bật và bài viết WordPress cần tối ưu.</div>
+
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let recommendation of recommendations">
+                <span class="badge-dot"></span>
+                <div>
+                  <div class="fw-bold mb-1">{{ recommendation.title }}</div>
+                  <div class="muted-text">{{ recommendation.detail }}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </ng-container>
   </div>
 </ion-content>

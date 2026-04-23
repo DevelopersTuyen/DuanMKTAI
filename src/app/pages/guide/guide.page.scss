@@ -1,0 +1,101 @@
+.quick-nav-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-nav-btn {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: inherit;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: flex-start;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  width: 100%;
+}
+
+.quick-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(196, 111, 21, 0.55);
+  transform: translateY(-1px);
+}
+
+.quick-nav-btn ion-icon {
+  color: var(--ion-color-warning);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.guide-section {
+  scroll-margin-top: 110px;
+}
+
+.section-title-wrap {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+}
+
+.section-title-wrap ion-icon {
+  color: var(--ion-color-warning);
+  font-size: 1.4rem;
+  margin-top: 0.15rem;
+}
+
+.guide-source {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.88);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+}
+
+.guide-block {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  height: 100%;
+  padding: 1rem 1rem 1.1rem;
+}
+
+.guide-block-warning {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.guide-block-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.85rem;
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.guide-list li + li {
+  margin-top: 0.55rem;
+}
+
+.guide-list.ordered {
+  padding-left: 1.1rem;
+}
+
+.faq-answer {
+  color: rgba(255, 255, 255, 0.82);
+  padding: 0 1rem 1rem;
+}
+
+@media (max-width: 767.98px) {
+  .quick-nav-grid {
+    grid-template-columns: 1fr;
+  }
+}

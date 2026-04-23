@@ -1,6 +1,7 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { BackgroundSheetRefreshService } from '../../core/services/background-sheet-refresh.service';
 import {
   GoogleWebsiteStatusResponse,
   GoogleWebsiteSyncResponse,
@@ -10,6 +11,7 @@ import {
   SocialPlatformsSyncResponse,
   SyncChannel,
 } from '../../core/services/marketing-data';
+import { UiActionsService } from '../../core/services/ui-actions.service';
 
 interface WordPressUiSite {
   name: string;
@@ -24,6 +26,8 @@ interface WordPressUiSite {
 })
 export class DataSyncPage implements OnInit {
   private readonly marketingData = inject(MarketingData);
+  private readonly backgroundRefresh = inject(BackgroundSheetRefreshService);
+  private readonly uiActions = inject(UiActionsService);
   private readonly destroyRef = inject(DestroyRef);
 
   syncChannels: SyncChannel[] = [];
@@ -32,28 +36,110 @@ export class DataSyncPage implements OnInit {
   syncResult?: GoogleWebsiteSyncResponse;
   syncError = '';
   isSyncing = false;
+  isLoading = true;
+  loadError = '';
 
   socialStatuses: SocialPlatformStatus[] = [];
   socialSyncResult?: SocialPlatformsSyncResponse;
   socialSyncError = '';
   isSocialSyncing = false;
+  utilityMessage = '';
+  utilityError = '';
 
-  readonly wordpressSites: WordPressUiSite[] = [
-    { name: 'ssg-vietnam.com', mode: 'manual' },
-    { name: 'fasolutions.vn', mode: 'manual' },
-    { name: 'jssrv.com', mode: 'auto' },
-  ];
+  readonly accountPageSize = 8;
+  accountPage = 1;
 
   ngOnInit(): void {
-    this.marketingData.getDataSync()
+    this.backgroundRefresh.watch('data-sync:overview', () => this.marketingData.getDataSync())
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => {
-        this.syncChannels = response.syncChannels;
-        this.accounts = response.accounts;
+      .subscribe((state) => {
+        if (state.data) {
+          this.syncChannels = state.data.syncChannels;
+          this.accounts = state.data.accounts;
+          this.loadError = '';
+        } else if (state.error && !this.accounts.length) {
+          this.loadError = state.error || 'Không thể tải bản đồ đồng bộ dữ liệu.';
+        }
+
+        this.isLoading = state.loading && !state.data;
       });
 
-    this.loadGoogleStatus();
-    this.loadSocialStatus();
+    this.backgroundRefresh.watch('data-sync:google-status', () => this.marketingData.getGoogleWebsiteStatus())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) => {
+        if (state.data) {
+          this.googleStatus = state.data;
+        }
+      });
+
+    this.backgroundRefresh.watch('data-sync:social-status', () => this.marketingData.getSocialStatus())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) => {
+        if (state.data) {
+          this.socialStatuses = state.data.statuses;
+        }
+      });
+  }
+
+  get accountTotalPages(): number {
+    return Math.max(1, Math.ceil(this.accounts.length / this.accountPageSize));
+  }
+
+  get pagedAccounts(): ManagedAccount[] {
+    const start = (this.accountPage - 1) * this.accountPageSize;
+    return this.accounts.slice(start, start + this.accountPageSize);
+  }
+
+  goToAccountPage(page: number): void {
+    this.accountPage = Math.min(this.accountTotalPages, Math.max(1, page));
+  }
+
+  refreshAll(): void {
+    this.backgroundRefresh.refreshMany(['data-sync:overview', 'data-sync:google-status', 'data-sync:social-status']);
+    this.setUtilityMessage('Đã yêu cầu làm mới toàn bộ trạng thái đồng bộ.');
+  }
+
+  async copySpreadsheetId(): Promise<void> {
+    const spreadsheetId = this.googleStatus?.spreadsheetId || '';
+    const copied = await this.uiActions.copyText(spreadsheetId);
+    if (copied) {
+      this.setUtilityMessage('Đã sao chép Google Sheet ID.');
+      return;
+    }
+
+    this.setUtilityError('Chưa có Google Sheet ID để sao chép.');
+  }
+
+  async copyWarnings(): Promise<void> {
+    const socialWarnings = this.socialStatuses.reduce<string[]>((accumulator, item) => {
+      accumulator.push(...item.warnings);
+      return accumulator;
+    }, []);
+
+    const warnings = [
+      ...(this.googleStatus?.warnings || []),
+      ...socialWarnings,
+    ].join('\n');
+    const copied = await this.uiActions.copyText(warnings);
+    if (copied) {
+      this.setUtilityMessage('Đã sao chép danh sách cảnh báo đồng bộ.');
+      return;
+    }
+
+    this.setUtilityError('Hiện chưa có cảnh báo để sao chép.');
+  }
+
+  async copySocialSummary(): Promise<void> {
+    const summary = this.socialStatuses.map((item) => (
+      `${item.name}: ${item.ready ? 'Sẵn sàng' : 'Chưa sẵn sàng'} | sheet ${item.worksheet} | tài nguyên ${item.configuredAssets}`
+    )).join('\n');
+    const copied = await this.uiActions.copyText(summary);
+    if (copied) {
+      this.setUtilityMessage('Đã sao chép tóm tắt social.');
+      return;
+    }
+
+    this.setUtilityError('Chưa có trạng thái social để sao chép.');
   }
 
   syncGoogleWebsite(): void {
@@ -66,12 +152,12 @@ export class DataSyncPage implements OnInit {
         next: (response) => {
           this.syncResult = response;
           this.isSyncing = false;
-          this.loadGoogleStatus();
+          this.backgroundRefresh.refreshMany(['data-sync:overview', 'data-sync:google-status']);
         },
         error: (error) => {
           this.syncError = error?.error?.detail ?? 'Không thể đồng bộ dữ liệu website từ Google API.';
           this.isSyncing = false;
-          this.loadGoogleStatus();
+          this.backgroundRefresh.refresh('data-sync:google-status');
         },
       });
   }
@@ -86,29 +172,13 @@ export class DataSyncPage implements OnInit {
         next: (response) => {
           this.socialSyncResult = response;
           this.isSocialSyncing = false;
-          this.loadSocialStatus();
+          this.backgroundRefresh.refreshMany(['data-sync:overview', 'data-sync:social-status']);
         },
         error: (error) => {
           this.socialSyncError = error?.error?.detail ?? 'Không thể đồng bộ dữ liệu social từ các API.';
           this.isSocialSyncing = false;
-          this.loadSocialStatus();
+          this.backgroundRefresh.refresh('data-sync:social-status');
         },
-      });
-  }
-
-  private loadGoogleStatus(): void {
-    this.marketingData.getGoogleWebsiteStatus()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => {
-        this.googleStatus = response;
-      });
-  }
-
-  private loadSocialStatus(): void {
-    this.marketingData.getSocialStatus()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => {
-        this.socialStatuses = response.statuses;
       });
   }
 
@@ -147,6 +217,48 @@ export class DataSyncPage implements OnInit {
     };
   }
 
+  get wordpressSites(): WordPressUiSite[] {
+    const mappedSites = this.googleStatus?.siteMappings?.map((mapping) => ({
+      name: mapping.siteName,
+      mode: mapping.gscSiteUrl ? 'auto' as const : 'manual' as const,
+    })) || [];
+
+    if (mappedSites.length) {
+      return mappedSites;
+    }
+
+    return [
+      { name: 'ssg-vietnam.com', mode: 'manual' },
+      { name: 'fasolutions.vn', mode: 'manual' },
+      { name: 'jssrv.com', mode: 'auto' },
+    ];
+  }
+
+  getGscMappingState(siteName: string): { chipClass: string; label: string; detail: string } {
+    const mapping = this.googleStatus?.siteMappings?.find((item) => item.siteName === siteName);
+    if (!mapping) {
+      return {
+        chipClass: 'status-draft',
+        label: 'Chưa có map',
+        detail: 'Backend chưa trả về map GSC cho website này.',
+      };
+    }
+
+    if (mapping.gscSiteUrl) {
+      return {
+        chipClass: 'status-live',
+        label: 'Đã map',
+        detail: `${mapping.wordpressBaseUrl} -> ${mapping.gscSiteUrl}`,
+      };
+    }
+
+    return {
+      chipClass: 'status-warning',
+      label: 'Chưa map',
+      detail: `${mapping.wordpressBaseUrl} chưa tìm thấy GSC site cùng domain trong quyền hiện tại.`,
+    };
+  }
+
   getSocialStatusClass(status: SocialPlatformStatus): string {
     if (status.ready) {
       return 'status-live';
@@ -159,5 +271,15 @@ export class DataSyncPage implements OnInit {
 
   hasReadySocialPlatform(): boolean {
     return this.socialStatuses.some((item) => item.ready);
+  }
+
+  private setUtilityMessage(message: string): void {
+    this.utilityMessage = message;
+    this.utilityError = '';
+  }
+
+  private setUtilityError(message: string): void {
+    this.utilityError = message;
+    this.utilityMessage = '';
   }
 }

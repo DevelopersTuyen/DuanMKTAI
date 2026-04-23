@@ -81,6 +81,25 @@ class ContentDraftGenerateResponse(BaseModel):
     draft: ContentDraft
 
 
+class ContentDraftGenerationStatusResponse(BaseModel):
+    jobId: str
+    status: Literal["queued", "running", "completed", "error"]
+    progress: int
+    currentStep: str
+    stepLabel: str
+    message: str
+    startedAt: str
+    updatedAt: str
+    completedAt: str | None = None
+    error: str | None = None
+    draft: ContentDraft | None = None
+
+
+class ContentDraftGenerationStartResponse(BaseModel):
+    message: str
+    job: ContentDraftGenerationStatusResponse
+
+
 class ContentDraftConfirmResponse(BaseModel):
     message: str
     draft: ContentDraft
@@ -89,6 +108,13 @@ class ContentDraftConfirmResponse(BaseModel):
 class ContentDraftListResponse(BaseModel):
     worksheet: str
     drafts: list[ContentDraft]
+
+
+class ContentDraftDeleteResponse(BaseModel):
+    status: Literal["success"]
+    message: str
+    draftId: str
+    worksheet: str
 
 
 class LocalAiChannelStatus(BaseModel):
@@ -127,6 +153,26 @@ class DailyReportLatestResponse(BaseModel):
     model: str
     source: str
     generatedAt: str
+    worksheet: str
+
+
+class DailyReportHistoryItem(BaseModel):
+    reportDate: str
+    tongQuat: str
+    model: str
+    source: str
+    generatedAt: str
+
+
+class DailyReportHistoryResponse(BaseModel):
+    worksheet: str
+    reports: list[DailyReportHistoryItem]
+
+
+class DailyReportDeleteResponse(BaseModel):
+    status: Literal["success"]
+    message: str
+    reportDate: str
     worksheet: str
 
 
@@ -203,6 +249,19 @@ class ScheduleItem(BaseModel):
     audience: str
 
 
+class ScheduleRule(BaseModel):
+    id: str
+    title: str
+    channel: str
+    publishMode: Literal["manual", "auto"]
+    startAt: str
+    repeatType: Literal["none", "daily", "weekly", "monthly"]
+    repeatInterval: int
+    daysOfWeek: list[int]
+    active: bool
+    note: str | None = None
+
+
 class CampaignOverview(BaseModel):
     name: str
     objective: str
@@ -237,11 +296,27 @@ class ReportSnapshot(BaseModel):
     summary: str
 
 
+class WebsiteSummary(BaseModel):
+    site: str
+    siteUrl: str | None = None
+    gaPropertyId: str | None = None
+    gscSiteUrl: str | None = None
+    pageViews: str
+    sessions: str
+    posts: int
+    trackedPages: int
+    clicks: int
+    ctr: float
+    position: float
+    syncStatus: str
+
+
 class DashboardResponse(BaseModel):
     kpis: list[DashboardKpi]
     performanceTrend: list[TrendPoint]
     channelBreakdown: list[ChannelShare]
     syncChannels: list[SyncChannel]
+    websiteSummaries: list[WebsiteSummary]
     recommendations: list[Recommendation]
 
 
@@ -261,7 +336,22 @@ class ContentResponse(BaseModel):
 
 
 class SchedulerResponse(BaseModel):
+    mode: Literal["manual", "auto"]
+    timezone: str
+    schedules: list[ScheduleRule]
     queue: list[ScheduleItem]
+
+
+class SchedulerUpdateRequest(BaseModel):
+    mode: Literal["manual", "auto"]
+    timezone: str = Field(min_length=1)
+    schedules: list[ScheduleRule]
+
+
+class SchedulerSaveResponse(BaseModel):
+    status: Literal["success"]
+    message: str
+    scheduler: SchedulerResponse
 
 
 class CampaignsResponse(BaseModel):
@@ -270,6 +360,7 @@ class CampaignsResponse(BaseModel):
 
 class SeoInsightsResponse(BaseModel):
     keywords: list[KeywordInsight]
+    websiteSummaries: list[WebsiteSummary]
     recommendations: list[Recommendation]
 
 
@@ -287,7 +378,13 @@ class SettingsResponse(BaseModel):
     ollamaModel: str
     spreadsheetId: str
     worksheet: str
+    syncMode: Literal["interval", "scheduled"]
+    syncStartTime: str
     syncIntervalMinutes: int
+    syncDaysOfWeek: list[int]
+    syncLoopEnabled: bool
+    syncWebsiteEnabled: bool
+    syncSocialEnabled: bool
     autoSync: bool
     autoRecommend: bool
     autoSchedule: bool
@@ -299,7 +396,13 @@ class SettingsUpdateRequest(BaseModel):
     ollamaModel: str = Field(min_length=1)
     spreadsheetId: str = Field(min_length=1)
     worksheet: str = Field(min_length=1)
+    syncMode: Literal["interval", "scheduled"] = "interval"
+    syncStartTime: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")
     syncIntervalMinutes: int = Field(ge=1, le=1440)
+    syncDaysOfWeek: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6])
+    syncLoopEnabled: bool = True
+    syncWebsiteEnabled: bool = True
+    syncSocialEnabled: bool = True
     autoSync: bool = True
     autoRecommend: bool = True
     autoSchedule: bool = False
@@ -338,7 +441,9 @@ class GoogleWebsiteStatusResponse(BaseModel):
     wordpressWorksheet: str
     analyticsPropertyId: str | None
     searchConsoleSiteUrl: str | None
+    searchConsoleSites: list[str]
     message: str
+    siteMappings: list[dict[str, str]]
     warnings: list[str]
 
 

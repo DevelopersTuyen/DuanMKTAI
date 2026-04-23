@@ -4,11 +4,9 @@
       <div class="d-flex flex-column flex-xl-row justify-content-between gap-4">
         <div class="hero-copy">
           <span class="section-kicker">Xưởng nội dung AI</span>
-          <h2 class="fw-bold mb-3">Giao diện bám sát luồng backend: brief, pipeline, ảnh local, bài SEO và lịch sử draft.</h2>
+          <h2 class="fw-bold mb-3">Tạo bài viết, sinh ảnh local, lưu Google Sheet và quản trị draft trực tiếp trên giao diện.</h2>
           <p class="card-copy mb-0">
-            Backend hiện chạy theo chuỗi <strong>llama3.2:3b</strong> tạo dàn bài Markdown, <strong>llava</strong> tạo metadata ảnh,
-            engine local sinh ảnh thật từ <code>IMAGE_SLOT</code>, rồi <strong>qwen2.5:3b</strong> viết bài SEO hoàn chỉnh.
-            Google Sheet chỉ lưu bài thành phẩm và metadata cần vận hành.
+            Dữ liệu draft đang lấy từ sheet <strong>post_create_by_ai</strong>. Bạn có thể tạo mới, xác nhận xuất bản, xóa draft lỗi hoặc xóa những bản không còn dùng.
           </p>
         </div>
 
@@ -40,39 +38,53 @@
             <button class="btn btn-outline-light btn-sm" type="button" (click)="loadImageProviderStatus()">Làm mới</button>
           </div>
 
-          <div class="status-banner mt-3" [ngClass]="providerToneClass()">
-            <div class="status-title">{{ providerStatusLabel() }}</div>
-            <div class="status-detail">{{ imageProviderStatus?.message || 'Chưa đọc được trạng thái provider.' }}</div>
+          <div class="page-state" *ngIf="isSystemLoading">
+            <div class="page-state-box">
+              <div class="loading-skeleton"></div>
+            </div>
           </div>
 
-          <div class="stats-grid mt-3">
-            <div class="soft-panel">
-              <div class="small muted-text">Provider</div>
-              <div class="fw-semibold text-uppercase">{{ imageProviderStatus?.provider || 'disabled' }}</div>
+          <ng-container *ngIf="!isSystemLoading">
+            <div class="status-banner mt-3" [ngClass]="providerToneClass()">
+              <div class="status-title">{{ providerStatusLabel() }}</div>
+              <div class="status-detail">{{ imageProviderStatus?.message || 'Chưa đọc được trạng thái provider.' }}</div>
             </div>
-            <div class="soft-panel">
-              <div class="small muted-text">Endpoint</div>
-              <div class="fw-semibold text-break">{{ imageProviderStatus?.endpoint || 'Chưa có' }}</div>
+
+            <div class="stats-grid mt-3">
+              <div class="soft-panel">
+                <div class="small muted-text">Provider</div>
+                <div class="fw-semibold text-uppercase">{{ imageProviderStatus?.provider || 'disabled' }}</div>
+              </div>
+              <div class="soft-panel">
+                <div class="small muted-text">Endpoint</div>
+                <div class="fw-semibold text-break">{{ imageProviderStatus?.endpoint || 'Chưa có' }}</div>
+              </div>
+              <div class="soft-panel stats-wide">
+                <div class="small muted-text">Workflow</div>
+                <div class="fw-semibold text-break">{{ imageProviderStatus?.workflowFile || 'Không dùng' }}</div>
+              </div>
             </div>
-            <div class="soft-panel stats-wide">
-              <div class="small muted-text">Workflow</div>
-              <div class="fw-semibold text-break">{{ imageProviderStatus?.workflowFile || 'Không dùng' }}</div>
-            </div>
-          </div>
+          </ng-container>
         </article>
       </div>
 
       <div class="col-xl-6">
-        <article class="glass-card p-4 h-100" *ngIf="aiQueueStatus as queue">
+        <article class="glass-card p-4 h-100">
           <div class="panel-head">
             <div>
               <div class="card-title mb-1">Hàng đợi AI local</div>
-              <div class="muted-text">Mọi bước AI local được xử lý tuần tự để tránh nghẽn hoặc lỗi model.</div>
+              <div class="muted-text">Mọi job AI local đang được xử lý tuần tự để tránh nghẽn model.</div>
             </div>
             <button class="btn btn-outline-light btn-sm" type="button" (click)="loadQueueStatus()">Làm mới</button>
           </div>
 
-          <div class="stats-grid mt-3">
+          <div class="page-state" *ngIf="isSystemLoading">
+            <div class="page-state-box">
+              <div class="loading-skeleton"></div>
+            </div>
+          </div>
+
+          <div class="stats-grid mt-3" *ngIf="!isSystemLoading && aiQueueStatus as queue">
             <div class="soft-panel">
               <div class="small muted-text">Job chờ</div>
               <div class="fw-semibold">{{ queue.waitingJobs }}</div>
@@ -97,31 +109,7 @@
     <section class="row g-4">
       <div class="col-xl-4">
         <article class="glass-card form-card p-4 h-100">
-          <div class="panel-head mb-3">
-            <div>
-              <div class="card-title mb-1">Tạo draft mới</div>
-              <div class="muted-text">Mỗi draft sẽ sinh Markdown nội bộ, ảnh local nếu có provider, và bài SEO thành phẩm.</div>
-            </div>
-          </div>
-
-          <div class="pipeline-list mb-4">
-            <div class="pipeline-item">
-              <strong>Bước 1</strong>
-              <div class="muted-text">`llama3.2:3b` tạo dàn bài Markdown bám sát brief.</div>
-            </div>
-            <div class="pipeline-item">
-              <strong>Bước 2</strong>
-              <div class="muted-text">`llava` tạo caption và alt text cho từng ảnh tham chiếu.</div>
-            </div>
-            <div class="pipeline-item">
-              <strong>Bước 2.5</strong>
-              <div class="muted-text">ComfyUI hoặc AUTOMATIC1111 sinh ảnh thật từ từng `IMAGE_SLOT`.</div>
-            </div>
-            <div class="pipeline-item">
-              <strong>Bước 3</strong>
-              <div class="muted-text">`qwen2.5:3b` dùng Markdown đã cập nhật để viết bài SEO hoàn chỉnh.</div>
-            </div>
-          </div>
+          <div class="card-title mb-3">Tạo draft mới</div>
 
           <div class="mb-3">
             <label class="form-label fw-semibold">Nền tảng đích</label>
@@ -156,9 +144,38 @@
               </span>
             </button>
           </div>
+          <div class="utility-actions mt-3">
+            <button class="btn btn-outline-light btn-sm" type="button" (click)="clearPrompt()">Xóa biểu mẫu</button>
+            <button class="btn btn-outline-light btn-sm" type="button" (click)="useActiveDraftAsPrompt()">Nạp từ draft</button>
+          </div>
+
+          <div class="soft-panel mt-3" *ngIf="currentGenerationJob as job">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+              <div>
+                <div class="fw-semibold">Tiến độ tạo bài viết</div>
+                <div class="muted-text small">{{ job.stepLabel }}</div>
+              </div>
+              <span class="pill">{{ job.progress }}%</span>
+            </div>
+            <div class="progress shell-progress mt-0 mb-2">
+              <div
+                class="progress-bar"
+                [class.progress-bar-striped]="job.status === 'queued' || job.status === 'running'"
+                [class.progress-bar-animated]="job.status === 'queued' || job.status === 'running'"
+                [style.width.%]="generationProgressPercent()"></div>
+            </div>
+            <div class="muted-text small">{{ job.message }}</div>
+            <div class="muted-text small mt-2">
+              Job ID: {{ job.jobId }}. Bạn có thể chuyển tab hoặc sang màn hình khác, khi quay lại hệ thống sẽ nối tiếp tiến độ này.
+            </div>
+          </div>
 
           <div class="alert alert-success mt-3 mb-0" *ngIf="generationMessage">{{ generationMessage }}</div>
           <div class="alert alert-warning mt-3 mb-0" *ngIf="generationError">{{ generationError }}</div>
+          <div class="alert alert-success mt-3 mb-0" *ngIf="deleteMessage">{{ deleteMessage }}</div>
+          <div class="alert alert-danger mt-3 mb-0" *ngIf="deleteError">{{ deleteError }}</div>
+          <div class="alert alert-success mt-3 mb-0" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+          <div class="alert alert-warning mt-3 mb-0" *ngIf="utilityError">{{ utilityError }}</div>
         </article>
       </div>
 
@@ -167,7 +184,7 @@
           <div class="panel-head mb-3">
             <div>
               <div class="card-title mb-1">Draft đang chọn</div>
-              <div class="card-copy">Dữ liệu đang hiển thị được đọc trực tiếp từ backend và đồng bộ với sheet `post_create_by_ai`.</div>
+              <div class="card-copy">Hiển thị dữ liệu thật từ backend và Google Sheet.</div>
             </div>
             <span class="pill pill-model" *ngIf="activeDraft">
               {{ activeDraft.outlineModel }} -> {{ activeDraft.imageModel }} -> {{ activeDraft.seoModel }}
@@ -202,12 +219,14 @@
           </div>
 
           <div class="d-flex flex-wrap gap-2 mb-3" *ngIf="activeDraft">
-            <button
-              class="btn btn-app"
-              type="button"
-              (click)="confirmDraft()"
-              [disabled]="isConfirming || activeDraft.status !== 'draft'">
+            <button class="btn btn-app" type="button" (click)="confirmDraft()" [disabled]="isConfirming || activeDraft.status !== 'draft'">
               {{ isConfirming ? 'Đang xác nhận...' : 'Xác nhận và chuyển bước xuất bản' }}
+            </button>
+            <button class="btn btn-outline-light" type="button" (click)="copyGeneratedArticle()">Sao chép bài viết</button>
+            <button class="btn btn-outline-light" type="button" (click)="downloadGeneratedArticle()">Tải bài viết</button>
+            <button class="btn btn-outline-light" type="button" (click)="downloadMarkdown()">Tải Markdown</button>
+            <button class="btn btn-outline-danger" type="button" (click)="deleteDraft(activeDraft)" [disabled]="isDeletingDraft(activeDraft.draftId)">
+              {{ isDeletingDraft(activeDraft.draftId) ? 'Đang xóa...' : 'Xóa draft khỏi Sheet' }}
             </button>
           </div>
 
@@ -237,29 +256,15 @@
                   <span class="pill">{{ image.status }}</span>
                 </div>
 
-                <img
-                  *ngIf="image.imageUrl"
-                  [src]="image.imageUrl"
-                  [alt]="image.altText"
-                  class="image-preview" />
+                <img *ngIf="image.imageUrl" [src]="image.imageUrl" [alt]="image.altText" class="image-preview" />
 
                 <div class="small mb-1"><strong>Caption:</strong> {{ image.caption }}</div>
                 <div class="small mb-1"><strong>Alt text:</strong> {{ image.altText }}</div>
                 <div class="small mb-1"><strong>Provider:</strong> {{ image.provider }}</div>
-                <div class="small text-danger" *ngIf="image.error">{{ image.error }}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="dispatch-results mt-4" *ngIf="activeDraft?.dispatchResults?.length">
-            <div class="card-title mb-2">Kết quả chuyển nền tảng</div>
-            <div class="soft-list">
-              <div class="soft-list-item" *ngFor="let result of activeDraft?.dispatchResults">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>{{ result.platform }}</strong>
-                  <div class="muted-text">{{ result.status }} - {{ result.detail }}</div>
+                <div class="utility-actions mt-2">
+                  <button class="btn btn-outline-light btn-sm" type="button" (click)="copyImagePrompt(image.slotId)">Sao chép prompt ảnh</button>
                 </div>
+                <div class="small text-danger" *ngIf="image.error">{{ image.error }}</div>
               </div>
             </div>
           </div>
@@ -269,12 +274,21 @@
           <div class="panel-head mb-3">
             <div>
               <div class="card-title mb-1">Gợi ý triển khai</div>
-              <div class="card-copy">Các ý tưởng này đang lấy từ backend và có thể nạp nhanh vào form để tạo draft.</div>
+              <div class="card-copy">Có thể nạp nhanh vào form để tạo draft mới.</div>
+            </div>
+            <span class="pill">Trang {{ ideaPage }}/{{ totalIdeaPages }}</span>
+          </div>
+
+          <div class="page-state" *ngIf="isIdeaLoading">
+            <div class="page-state-box">
+              <div class="loading-skeleton"></div>
             </div>
           </div>
 
-          <div class="idea-grid">
-            <div class="soft-list-item idea-item" *ngFor="let idea of ideas">
+          <div class="alert alert-danger mb-3" *ngIf="ideasError">{{ ideasError }}</div>
+
+          <div class="idea-grid" *ngIf="!isIdeaLoading && !ideasError">
+            <div class="soft-list-item idea-item" *ngFor="let idea of pagedIdeas">
               <span class="badge-dot"></span>
               <div>
                 <div class="fw-bold mb-1">{{ idea.title }}</div>
@@ -283,19 +297,41 @@
               </div>
             </div>
           </div>
+
+          <div class="pagination-shell" *ngIf="ideas.length > ideaPageSize">
+            <div class="pagination-meta">
+              Hiển thị {{ (ideaPage - 1) * ideaPageSize + 1 }} -
+              {{ ((ideaPage - 1) * ideaPageSize) + pagedIdeas.length }} / {{ ideas.length }} gợi ý
+            </div>
+            <div class="pagination-actions">
+              <button class="btn btn-outline-light" type="button" (click)="goToIdeaPage(ideaPage - 1)" [disabled]="ideaPage === 1">Trước</button>
+              <button class="btn btn-outline-light" type="button" (click)="goToIdeaPage(ideaPage + 1)" [disabled]="ideaPage === totalIdeaPages">Sau</button>
+            </div>
+          </div>
         </article>
 
         <article class="glass-card p-4">
           <div class="panel-head mb-3">
             <div>
               <div class="card-title mb-1">Lịch sử draft</div>
-              <div class="card-copy">Danh sách draft được đọc trực tiếp từ sheet `post_create_by_ai` qua backend.</div>
+              <div class="card-copy">Danh sách thật đọc từ Google Sheet.</div>
             </div>
-            <button class="btn btn-outline-light btn-sm" type="button" (click)="loadDrafts()">Làm mới</button>
+            <div class="d-flex gap-2">
+              <span class="pill">Trang {{ draftPage }}/{{ totalDraftPages }}</span>
+              <button class="btn btn-outline-light btn-sm" type="button" (click)="loadDrafts()">Làm mới</button>
+            </div>
           </div>
 
-          <div class="draft-history" *ngIf="drafts.length; else emptyDrafts">
-            <button class="draft-item" type="button" *ngFor="let draft of drafts" (click)="selectDraft(draft)">
+          <div class="page-state" *ngIf="isDraftLoading">
+            <div class="page-state-box">
+              <div class="loading-skeleton"></div>
+            </div>
+          </div>
+
+          <div class="alert alert-danger mb-3" *ngIf="draftsError">{{ draftsError }}</div>
+
+          <div class="draft-history" *ngIf="!isDraftLoading && !draftsError && drafts.length; else emptyDrafts">
+            <button class="draft-item" type="button" *ngFor="let draft of pagedDrafts" (click)="selectDraft(draft)">
               <div class="d-flex justify-content-between align-items-start gap-3">
                 <div>
                   <div class="fw-semibold">{{ draft.requestedPlatforms }}</div>
@@ -304,12 +340,28 @@
                 <span class="pill">{{ draft.status }}</span>
               </div>
               <div class="small mt-2">{{ formatDate(draft.createdAt) }}</div>
+              <div class="mt-3">
+                <button class="btn btn-outline-danger btn-sm" type="button" (click)="deleteDraft(draft, $event)" [disabled]="isDeletingDraft(draft.draftId)">
+                  {{ isDeletingDraft(draft.draftId) ? 'Đang xóa...' : 'Xóa' }}
+                </button>
+              </div>
             </button>
           </div>
 
           <ng-template #emptyDrafts>
-            <div class="muted-text">Chưa có draft AI nào được lưu.</div>
+            <div class="muted-text" *ngIf="!isDraftLoading && !draftsError">Chưa có draft AI nào được lưu.</div>
           </ng-template>
+
+          <div class="pagination-shell" *ngIf="drafts.length > draftPageSize">
+            <div class="pagination-meta">
+              Hiển thị {{ (draftPage - 1) * draftPageSize + 1 }} -
+              {{ ((draftPage - 1) * draftPageSize) + pagedDrafts.length }} / {{ drafts.length }} draft
+            </div>
+            <div class="pagination-actions">
+              <button class="btn btn-outline-light" type="button" (click)="goToDraftPage(draftPage - 1)" [disabled]="draftPage === 1">Trước</button>
+              <button class="btn btn-outline-light" type="button" (click)="goToDraftPage(draftPage + 1)" [disabled]="draftPage === totalDraftPages">Sau</button>
+            </div>
+          </div>
         </article>
       </div>
     </section>

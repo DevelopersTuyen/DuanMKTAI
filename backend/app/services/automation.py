@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from typing import Any
 
 from googleapiclient.discovery import build
@@ -89,6 +89,56 @@ class AutomationManager:
             return True
         return (datetime.now(UTC) - last_run).total_seconds() >= max(interval_minutes, 1) * 60
 
+    def _parse_last_run_local(self, last_run_at: str | None) -> datetime | None:
+        if not last_run_at:
+            return None
+        try:
+            parsed = datetime.fromisoformat(last_run_at)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed
+        return parsed.astimezone().replace(tzinfo=None)
+
+    def _is_sync_due(
+        self,
+        last_run_at: str | None,
+        sync_mode: str,
+        sync_start_time: str,
+        sync_interval_minutes: int,
+        sync_days_of_week: list[int],
+        sync_loop_enabled: bool,
+    ) -> bool:
+        if sync_mode != "scheduled":
+            return self._is_due(last_run_at, sync_interval_minutes)
+
+        now_local = datetime.now()
+        allowed_days = sorted({day for day in sync_days_of_week if 0 <= day <= 6}) or [0, 1, 2, 3, 4, 5, 6]
+        if now_local.weekday() not in allowed_days:
+            return False
+
+        try:
+            start_hour, start_minute = [int(part) for part in sync_start_time.split(":", maxsplit=1)]
+            target_time = time(hour=start_hour, minute=start_minute)
+        except (TypeError, ValueError):
+            return self._is_due(last_run_at, sync_interval_minutes)
+
+        target_datetime = datetime.combine(now_local.date(), target_time)
+        if now_local < target_datetime:
+            return False
+
+        last_run_local = self._parse_last_run_local(last_run_at)
+        if last_run_local is None:
+            return True
+
+        if last_run_local.date() < now_local.date():
+            return True
+
+        if not sync_loop_enabled:
+            return False
+
+        return (now_local - last_run_local).total_seconds() >= max(sync_interval_minutes, 1) * 60
+
     def _mark_disabled(self, job_key: str, message: str) -> None:
         job = self._state["jobs"][job_key]
         job["enabled"] = False
@@ -125,8 +175,18 @@ class AutomationManager:
         if auto_sync:
             sync_job = self._state["jobs"]["sync"]
             sync_job["enabled"] = True
-            if self._is_due(sync_job["lastRunAt"], interval_minutes):
-                await self._run_sync_job(settings)
+            if settings.sync_website_enabled or settings.sync_social_enabled:
+                if self._is_sync_due(
+                    sync_job["lastRunAt"],
+                    settings.sync_mode,
+                    settings.sync_start_time,
+                    interval_minutes,
+                    settings.get_sync_days_of_week(),
+                    settings.sync_loop_enabled,
+                ):
+                    await self._run_sync_job(settings)
+            else:
+                self._mark_disabled("sync", "Đã bật tự động đồng bộ nhưng chưa chọn website hoặc social.")
         else:
             self._mark_disabled("sync", "Đã tắt tự động đồng bộ trong cài đặt.")
 
@@ -151,19 +211,25 @@ class AutomationManager:
         messages: list[str] = []
         success = False
 
-        try:
-            website_response = await sync_google_website_data(settings)
-            messages.append(website_response.message)
-            success = True
-        except Exception as exc:
-            messages.append(f"Website: {exc}")
+        if settings.sync_website_enabled:
+            try:
+                website_response = await sync_google_website_data(settings)
+                messages.append(website_response.message)
+                success = True
+            except Exception as exc:
+                messages.append(f"Website: {exc}")
+        else:
+            messages.append("Website: đã tắt trong cài đặt.")
 
-        try:
-            social_response = await sync_social_platforms(settings)
-            messages.append(social_response.message)
-            success = True
-        except Exception as exc:
-            messages.append(f"Social: {exc}")
+        if settings.sync_social_enabled:
+            try:
+                social_response = await sync_social_platforms(settings)
+                messages.append(social_response.message)
+                success = True
+            except Exception as exc:
+                messages.append(f"Social: {exc}")
+        else:
+            messages.append("Social: đã tắt trong cài đặt.")
 
         self._mark_result(
             "sync",

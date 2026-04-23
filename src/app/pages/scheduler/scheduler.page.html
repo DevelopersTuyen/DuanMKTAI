@@ -2,71 +2,241 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <span class="section-kicker">Bộ máy xuất bản</span>
-      <h2 class="fw-bold mb-3">Lên lịch đăng bài và chọn khung giờ tối ưu theo từng nền tảng.</h2>
+      <h2 class="fw-bold mb-3">Thiết lập đăng tự động hoặc thủ công, đặt ngày giờ và cấu hình lặp lại.</h2>
       <p class="card-copy mb-0">
-        Bộ lên lịch sắp xếp hàng đợi nội dung, đề xuất giờ đăng và nhóm đối tượng mục tiêu dựa trên lịch sử tương tác đã đồng bộ.
+        Phần này lưu cấu hình lịch thật ở backend. Bạn có thể chọn chế độ mặc định, tạo nhiều lịch khác nhau theo kênh,
+        và bật lặp hàng ngày, hàng tuần hoặc hàng tháng.
       </p>
     </section>
 
-    <section class="row g-4">
-      <div class="col-xl-8">
-        <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="card-title mb-1">Hàng đợi xuất bản</div>
-          <div class="card-copy mb-3">Đây là danh sách nội dung cho xuất bản tự động sau khi duyệt.</div>
+    <div *ngIf="isLoading" class="glass-card p-4 mb-4">
+      <div class="card-title mb-2">Đang tải cấu hình lên lịch...</div>
+      <div class="card-copy mb-0">Hệ thống đang lấy danh sách lịch và hàng đợi xuất bản hiện tại.</div>
+    </div>
 
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Nội dung</th>
-                  <th>Kênh</th>
-                  <th>Khung giờ</th>
-                  <th>Khoảng giờ tốt nhất</th>
-                  <th>Đối tượng</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let item of queue">
-                  <td class="fw-semibold">{{ item.asset }}</td>
-                  <td>{{ item.channel }}</td>
-                  <td>{{ item.slot }}</td>
-                  <td>{{ item.bestWindow }}</td>
-                  <td>{{ item.audience }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </div>
+    <ng-container *ngIf="!isLoading">
+      <section class="row g-4">
+        <div class="col-xl-5">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-3">Cài đặt chung</div>
 
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Quy tắc tự động hóa</div>
-          <div class="soft-list">
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Nếu CTR &gt; 5%</strong>
-                <div class="muted-text">Tạo biến thể nội dung và xếp lịch thêm 2 khung trong 48 giờ.</div>
+            <div class="mb-3">
+              <label class="form-label">Chế độ đăng mặc định</label>
+              <div class="segmented-control">
+                <button
+                  type="button"
+                  class="segmented-pill"
+                  [class.active]="mode === 'manual'"
+                  (click)="mode = 'manual'"
+                >
+                  Thủ công
+                </button>
+                <button
+                  type="button"
+                  class="segmented-pill"
+                  [class.active]="mode === 'auto'"
+                  (click)="mode = 'auto'"
+                >
+                  Tự động
+                </button>
+              </div>
+              <div class="muted-text mt-2">
+                `Thủ công` dùng để chờ xác nhận trước khi đẩy lên nền tảng. `Tự động` dùng để cho phép hàng đợi tự xuất bản theo lịch.
               </div>
             </div>
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Nếu tương tác giảm 20%</strong>
-                <div class="muted-text">Đổi hook và chuyển sang khung giờ mới do AI gợi ý.</div>
+
+            <div class="mb-4">
+              <label class="form-label" for="timezone">Múi giờ</label>
+              <input id="timezone" class="form-control" [(ngModel)]="timezone" placeholder="Asia/Saigon" />
+            </div>
+
+            <div class="card-title mb-3">{{ editingRuleId ? 'Sửa lịch đăng' : 'Tạo lịch đăng mới' }}</div>
+
+            <div class="mb-3">
+              <label class="form-label" for="schedule-title">Tên nội dung hoặc chiến dịch</label>
+              <input id="schedule-title" class="form-control" [(ngModel)]="ruleForm.title" placeholder="Ví dụ: Đẩy bài mới về gốm Bát Tràng" />
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="schedule-channel">Kênh</label>
+                <select id="schedule-channel" class="form-select" [(ngModel)]="ruleForm.channel">
+                  <option *ngFor="let channel of channelOptions" [value]="channel">{{ channel }}</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Kiểu đăng</label>
+                <div class="segmented-control">
+                  <button
+                    type="button"
+                    class="segmented-pill"
+                    [class.active]="ruleForm.publishMode === 'manual'"
+                    (click)="ruleForm.publishMode = 'manual'"
+                  >
+                    Thủ công
+                  </button>
+                  <button
+                    type="button"
+                    class="segmented-pill"
+                    [class.active]="ruleForm.publishMode === 'auto'"
+                    (click)="ruleForm.publishMode = 'auto'"
+                  >
+                    Tự động
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Làm mới bài SEO</strong>
-                <div class="muted-text">Tự động đặt lịch cập nhật nội dung cho bài có khoảng cách CTR cao.</div>
+
+            <div class="row g-3 mt-1">
+              <div class="col-md-7">
+                <label class="form-label" for="schedule-start">Ngày giờ bắt đầu</label>
+                <input id="schedule-start" class="form-control" type="datetime-local" [(ngModel)]="ruleForm.startAt" />
+              </div>
+
+              <div class="col-md-5">
+                <label class="form-label" for="schedule-repeat-type">Lặp lại</label>
+                <select
+                  id="schedule-repeat-type"
+                  class="form-select"
+                  [(ngModel)]="ruleForm.repeatType"
+                  (ngModelChange)="onRepeatTypeChange($event)"
+                >
+                  <option value="none">Không lặp</option>
+                  <option value="daily">Hàng ngày</option>
+                  <option value="weekly">Hàng tuần</option>
+                  <option value="monthly">Hàng tháng</option>
+                </select>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label" for="schedule-repeat-interval">Chu kỳ lặp</label>
+                <input
+                  id="schedule-repeat-interval"
+                  class="form-control"
+                  type="number"
+                  min="1"
+                  [(ngModel)]="ruleForm.repeatInterval"
+                />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label d-block">Trạng thái</label>
+                <label class="checkbox-pill">
+                  <input type="checkbox" [(ngModel)]="ruleForm.active" />
+                  <span>Kích hoạt lịch</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="mt-3" *ngIf="ruleForm.repeatType === 'weekly'">
+              <label class="form-label d-block">Ngày lặp trong tuần</label>
+              <div class="weekday-grid">
+                <button
+                  type="button"
+                  class="weekday-pill"
+                  *ngFor="let day of weekdayOptions"
+                  [class.active]="isWeekdaySelected(day.value)"
+                  (click)="toggleWeekday(day.value)"
+                >
+                  {{ day.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label" for="schedule-note">Ghi chú</label>
+              <textarea
+                id="schedule-note"
+                class="form-control"
+                rows="3"
+                [(ngModel)]="ruleForm.note"
+                placeholder="Ví dụ: Chỉ đăng khi bài viết đã được xác nhận."
+              ></textarea>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+              <button type="button" class="btn btn-primary" (click)="saveRuleDraft()">
+                {{ editingRuleId ? 'Cập nhật lịch' : 'Thêm vào danh sách' }}
+              </button>
+              <button type="button" class="btn btn-outline-secondary" (click)="resetRuleForm()">Làm mới form</button>
+              <button type="button" class="btn btn-success" [disabled]="isSaving" (click)="persistScheduler()">
+                {{ isSaving ? 'Đang lưu...' : 'Lưu cấu hình lên lịch' }}
+              </button>
+            </div>
+
+            <div *ngIf="saveMessage" class="alert alert-success mt-3 mb-0">{{ saveMessage }}</div>
+            <div *ngIf="saveError" class="alert alert-danger mt-3 mb-0">{{ saveError }}</div>
+          </article>
+        </div>
+
+        <div class="col-xl-7">
+          <article class="glass-card table-surface p-3 p-lg-4 mb-4">
+            <div class="card-title mb-1">Danh sách lịch đã cấu hình</div>
+            <div class="card-copy mb-3">Mỗi lịch có thể đăng thủ công hoặc tự động và có thể lặp lại theo chu kỳ.</div>
+
+            <div *ngIf="!schedules.length" class="empty-state">
+              Chưa có lịch nào. Hãy tạo lịch đầu tiên ở cột bên trái.
+            </div>
+
+            <div class="schedule-list" *ngIf="schedules.length">
+              <article class="schedule-card" *ngFor="let rule of schedules; trackBy: trackRule">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div class="schedule-title">{{ rule.title }}</div>
+                    <div class="muted-text">{{ rule.channel }} • {{ rule.publishMode === 'auto' ? 'Tự động' : 'Thủ công' }}</div>
+                  </div>
+                  <span class="status-chip" [class.inactive]="!rule.active">{{ rule.active ? 'Đang bật' : 'Tạm dừng' }}</span>
+                </div>
+
+                <div class="schedule-meta-grid mt-3">
+                  <div><strong>Bắt đầu:</strong> {{ rule.startAt }}</div>
+                  <div><strong>Lặp:</strong> {{ rule.repeatType === 'none' ? 'Không lặp' : rule.repeatType }}</div>
+                  <div><strong>Chu kỳ:</strong> {{ rule.repeatInterval }}</div>
+                  <div><strong>Ngày tuần:</strong> {{ rule.daysOfWeek.length ? rule.daysOfWeek.join(', ') : 'Không áp dụng' }}</div>
+                </div>
+
+                <div class="muted-text mt-3" *ngIf="rule.note">{{ rule.note }}</div>
+
+                <div class="d-flex gap-2 mt-3">
+                  <button type="button" class="btn btn-outline-primary btn-sm" (click)="editRule(rule)">Sửa</button>
+                  <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeRule(rule.id)">Xóa</button>
+                </div>
+              </article>
+            </div>
+          </article>
+
+          <article class="glass-card table-surface p-3 p-lg-4">
+            <div class="card-title mb-1">Hàng đợi xuất bản</div>
+            <div class="card-copy mb-3">Xem trước các mốc xuất bản được tạo từ cấu hình hiện tại.</div>
+
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Nội dung</th>
+                    <th>Kênh</th>
+                    <th>Lịch chạy</th>
+                    <th>Khung giờ tốt nhất</th>
+                    <th>Đối tượng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of queue">
+                    <td class="fw-semibold">{{ item.asset }}</td>
+                    <td>{{ item.channel }}</td>
+                    <td>{{ item.slot }}</td>
+                    <td>{{ item.bestWindow }}</td>
+                    <td>{{ item.audience }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+    </ng-container>
   </div>
 </ion-content>

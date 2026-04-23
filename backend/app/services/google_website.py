@@ -20,10 +20,67 @@ GOOGLE_SCOPES = [
 ]
 
 
+def normalize_site_url(site_url: str) -> str:
+    normalized = site_url.strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("sc-domain:"):
+        return normalized
+
+    parsed = urlparse(normalized)
+    scheme = parsed.scheme.lower() or "https"
+    netloc = parsed.netloc.lower()
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/"
+    return f"{scheme}://{netloc}{path}"
+
+
+def build_wordpress_gsc_mappings(settings: Settings) -> list[dict[str, str]]:
+    gsc_site_urls = [normalize_site_url(site_url) for site_url in settings.get_google_search_console_site_urls()]
+    mappings: list[dict[str, str]] = []
+
+    for site in settings.get_wordpress_sites():
+        normalized_wp_url = normalize_url(site.base_url)
+        wp_host = urlparse(normalized_wp_url).netloc.lower()
+        matched_gsc_site = next(
+            (
+                candidate
+                for candidate in gsc_site_urls
+                if candidate.startswith("sc-domain:")
+                and wp_host.endswith(candidate.removeprefix("sc-domain:").lower())
+            ),
+            "",
+        )
+        if not matched_gsc_site:
+            matched_gsc_site = next(
+                (
+                    candidate
+                    for candidate in gsc_site_urls
+                    if urlparse(candidate).netloc.lower() == wp_host
+                ),
+                "",
+            )
+
+        mappings.append(
+            {
+                "siteName": site.name,
+                "wordpressBaseUrl": normalized_wp_url,
+                "wordpressHost": wp_host,
+                "gscSiteUrl": matched_gsc_site,
+                "status": "mapped" if matched_gsc_site else "unmapped",
+            }
+        )
+
+    return mappings
+
+
 def get_google_website_status(settings: Settings) -> GoogleWebsiteStatusResponse:
     warnings: list[str] = []
     wordpress_sites = settings.get_wordpress_sites()
     analytics_property_ids = settings.get_google_analytics_property_ids()
+    gsc_site_urls = settings.get_google_search_console_site_urls()
+    site_mappings = build_wordpress_gsc_mappings(settings)
     has_service_account_key = bool(
         (settings.google_service_account_json and settings.google_service_account_json.strip())
         or (settings.google_service_account_file and settings.google_service_account_file.strip())
@@ -36,8 +93,8 @@ def get_google_website_status(settings: Settings) -> GoogleWebsiteStatusResponse
         warnings.append("Thiếu GOOGLE_SHEET_WORKSHEET.")
     if not analytics_property_ids:
         warnings.append("Thiếu GOOGLE_ANALYTICS_PROPERTY_ID hoặc GOOGLE_ANALYTICS_PROPERTY_IDS_JSON.")
-    if not settings.google_search_console_site_url:
-        warnings.append("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL.")
+    if not gsc_site_urls:
+        warnings.append("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL hoặc GOOGLE_SEARCH_CONSOLE_SITE_URLS_JSON.")
     if not has_service_account_key:
         warnings.append("Thiếu GOOGLE_SERVICE_ACCOUNT_JSON hoặc GOOGLE_SERVICE_ACCOUNT_FILE.")
     if not has_api_key:
@@ -49,7 +106,7 @@ def get_google_website_status(settings: Settings) -> GoogleWebsiteStatusResponse
         bool(settings.google_sheet_id)
         and bool(settings.google_sheet_worksheet)
         and bool(analytics_property_ids)
-        and bool(settings.google_search_console_site_url)
+        and bool(gsc_site_urls)
         and has_service_account_key
     )
 
@@ -68,8 +125,10 @@ def get_google_website_status(settings: Settings) -> GoogleWebsiteStatusResponse
         worksheet=settings.google_sheet_worksheet,
         wordpressWorksheet=settings.wordpress_posts_worksheet,
         analyticsPropertyId=", ".join(analytics_property_ids),
-        searchConsoleSiteUrl=settings.google_search_console_site_url,
+        searchConsoleSiteUrl=", ".join(gsc_site_urls) if gsc_site_urls else None,
+        searchConsoleSites=gsc_site_urls,
         message=message,
+        siteMappings=site_mappings,
         warnings=warnings,
     )
 
@@ -156,77 +215,83 @@ def fetch_google_analytics_page_rows(settings: Settings, credentials: Credential
 
 
 def fetch_search_console_rows(settings: Settings, credentials: Credentials) -> list[list[str]]:
-    if not settings.google_search_console_site_url:
-        raise ValueError("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL.")
+    site_urls = settings.get_google_search_console_site_urls()
+    if not site_urls:
+        raise ValueError("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL hoặc GOOGLE_SEARCH_CONSOLE_SITE_URLS_JSON.")
 
     service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
     end_date = date.today()
     start_date = end_date - timedelta(days=7)
 
-    response = (
-        service.searchanalytics()
-        .query(
-            siteUrl=settings.google_search_console_site_url,
-            body={
-                "startDate": start_date.isoformat(),
-                "endDate": end_date.isoformat(),
-                "dimensions": ["page", "query"],
-                "rowLimit": 100,
-            },
+    rows: list[list[str]] = [["site_url", "page", "query", "clicks", "impressions", "ctr", "position"]]
+    for site_url in site_urls:
+        response = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body={
+                    "startDate": start_date.isoformat(),
+                    "endDate": end_date.isoformat(),
+                    "dimensions": ["page", "query"],
+                    "rowLimit": 100,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
 
-    rows: list[list[str]] = [["page", "query", "clicks", "impressions", "ctr", "position"]]
-    for row in response.get("rows", []):
-        keys = row.get("keys", ["", ""])
-        rows.append(
-            [
-                str(keys[0] if len(keys) > 0 else ""),
-                str(keys[1] if len(keys) > 1 else ""),
-                str(row.get("clicks", 0)),
-                str(row.get("impressions", 0)),
-                str(row.get("ctr", 0)),
-                str(row.get("position", 0)),
-            ]
-        )
+        for row in response.get("rows", []):
+            keys = row.get("keys", ["", ""])
+            rows.append(
+                [
+                    site_url,
+                    str(keys[0] if len(keys) > 0 else ""),
+                    str(keys[1] if len(keys) > 1 else ""),
+                    str(row.get("clicks", 0)),
+                    str(row.get("impressions", 0)),
+                    str(row.get("ctr", 0)),
+                    str(row.get("position", 0)),
+                ]
+            )
     return rows
 
 
 def fetch_search_console_page_rows(settings: Settings, credentials: Credentials) -> list[list[str]]:
-    if not settings.google_search_console_site_url:
-        raise ValueError("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL.")
+    site_urls = settings.get_google_search_console_site_urls()
+    if not site_urls:
+        raise ValueError("Thiếu GOOGLE_SEARCH_CONSOLE_SITE_URL hoặc GOOGLE_SEARCH_CONSOLE_SITE_URLS_JSON.")
 
     service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
     end_date = date.today()
     start_date = end_date - timedelta(days=28)
 
-    response = (
-        service.searchanalytics()
-        .query(
-            siteUrl=settings.google_search_console_site_url,
-            body={
-                "startDate": start_date.isoformat(),
-                "endDate": end_date.isoformat(),
-                "dimensions": ["page"],
-                "rowLimit": 250,
-            },
+    rows: list[list[str]] = [["site_url", "page", "clicks", "impressions", "ctr", "position"]]
+    for site_url in site_urls:
+        response = (
+            service.searchanalytics()
+            .query(
+                siteUrl=site_url,
+                body={
+                    "startDate": start_date.isoformat(),
+                    "endDate": end_date.isoformat(),
+                    "dimensions": ["page"],
+                    "rowLimit": 250,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
 
-    rows: list[list[str]] = [["page", "clicks", "impressions", "ctr", "position"]]
-    for row in response.get("rows", []):
-        keys = row.get("keys", [""])
-        rows.append(
-            [
-                str(keys[0] if keys else ""),
-                str(row.get("clicks", 0)),
-                str(row.get("impressions", 0)),
-                str(row.get("ctr", 0)),
-                str(row.get("position", 0)),
-            ]
-        )
+        for row in response.get("rows", []):
+            keys = row.get("keys", [""])
+            rows.append(
+                [
+                    site_url,
+                    str(keys[0] if keys else ""),
+                    str(row.get("clicks", 0)),
+                    str(row.get("impressions", 0)),
+                    str(row.get("ctr", 0)),
+                    str(row.get("position", 0)),
+                ]
+            )
     return rows
 
 
@@ -239,6 +304,7 @@ def build_google_sheet_rows(
         "sync_date",
         "source",
         "property_id",
+        "gsc_site_url",
         "page",
         "hostname",
         "page_path",
@@ -261,6 +327,7 @@ def build_google_sheet_rows(
                 snapshot_date,
                 "google_analytics",
                 property_id,
+                "",
                 normalized_page,
                 hostname,
                 page_path,
@@ -276,7 +343,7 @@ def build_google_sheet_rows(
         )
 
     for row in search_console_page_rows[1:]:
-        page, clicks, impressions, ctr, position = row
+        site_url, page, clicks, impressions, ctr, position = row
         normalized_page = normalize_url(page)
         parsed = urlparse(normalized_page)
         rows.append(
@@ -284,6 +351,7 @@ def build_google_sheet_rows(
                 snapshot_date,
                 "google_search_console",
                 "",
+                site_url,
                 normalized_page,
                 parsed.netloc.lower(),
                 extract_path_from_url(normalized_page),
@@ -320,9 +388,10 @@ def build_analytics_page_lookup(page_rows: list[list[str]]) -> dict[str, dict[st
 def build_search_console_page_lookup(page_rows: list[list[str]]) -> dict[str, dict[str, str]]:
     lookup: dict[str, dict[str, str]] = {}
     for row in page_rows[1:]:
-        page, clicks, impressions, ctr, position = row
+        site_url, page, clicks, impressions, ctr, position = row
         normalized = normalize_url(page)
         lookup[normalized] = {
+            "site_url": site_url,
             "clicks": clicks,
             "impressions": impressions,
             "ctr": ctr,
@@ -346,6 +415,7 @@ async def fetch_wordpress_post_rows(
         "published_at",
         "url",
         "slug",
+        "gsc_site_url",
         "ga_property_id",
         "ga_page_views_28d",
         "ga_sessions_28d",
@@ -359,6 +429,10 @@ async def fetch_wordpress_post_rows(
 
     analytics_lookup = build_analytics_page_lookup(analytics_page_rows)
     search_console_lookup = build_search_console_page_lookup(search_console_page_rows)
+    site_mapping_by_name = {
+        mapping["siteName"]: mapping["gscSiteUrl"]
+        for mapping in build_wordpress_gsc_mappings(settings)
+    }
 
     for site in settings.get_wordpress_sites():
         try:
@@ -377,7 +451,13 @@ async def fetch_wordpress_post_rows(
             )
             gsc_metrics = search_console_lookup.get(
                 normalized_link,
-                {"clicks": "0", "impressions": "0", "ctr": "0", "position": "0"},
+                {
+                    "site_url": site_mapping_by_name.get(site.name, ""),
+                    "clicks": "0",
+                    "impressions": "0",
+                    "ctr": "0",
+                    "position": "0",
+                },
             )
             rows.append(
                 [
@@ -389,6 +469,7 @@ async def fetch_wordpress_post_rows(
                     str(post.get("date", "")),
                     normalized_link,
                     str(post.get("slug", "")),
+                    gsc_metrics.get("site_url", ""),
                     ga_metrics["property_id"],
                     ga_metrics["page_views"],
                     ga_metrics["sessions"],
@@ -563,6 +644,7 @@ async def sync_google_website_data(settings: Settings) -> GoogleWebsiteSyncRespo
         "published_at",
         "url",
         "slug",
+        "gsc_site_url",
         "ga_property_id",
         "ga_page_views_28d",
         "ga_sessions_28d",

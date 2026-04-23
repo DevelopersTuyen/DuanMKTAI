@@ -10,3 +10,10 @@
   white-space: pre-wrap;
   line-height: 1.7;
 }
+
+.utility-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}

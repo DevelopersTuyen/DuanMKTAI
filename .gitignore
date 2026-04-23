@@ -43,6 +43,11 @@ yarn-error.log
 /backend/.env
 /backend/*.json
 /backend/storage/
+/backend/ComfyUI/*
+!/backend/ComfyUI/.gitignore
+!/backend/ComfyUI/README.md
+!/backend/ComfyUI/run_comfyui.ps1
+!/backend/ComfyUI/comfyui_text2img_api.json
 
 # IDEs and editors
 .idea/

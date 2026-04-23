@@ -1,13 +1,54 @@
 <ion-app>
   <ion-split-pane contentId="main-content" when="lg">
-    <ion-menu contentId="main-content" type="overlay" class="side-menu">
+    <ion-menu
+      contentId="main-content"
+      class="side-menu"
+      [class.menu-collapsed]="menuCollapsed">
       <ion-content class="menu-surface">
         <div class="brand-panel">
-          <p class="eyebrow mb-2">Trung tâm điều phối MKTAI</p>
-          <h1>Marketing AI Hub</h1>
-          <p class="brand-copy mb-0">
-            Đồng bộ mạng xã hội, SEO, nội dung AI và tự động hóa xuất bản trong một không gian làm việc Ionic Angular.
-          </p>
+          <div class="brand-head">
+            <div class="brand-mark">MK</div>
+            <button
+              class="menu-collapse-button d-none d-lg-inline-flex"
+              type="button"
+              (click)="toggleMenuCollapsed()"
+              [attr.aria-label]="menuCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'">
+              <ion-icon [name]="menuCollapsed ? 'chevron-forward-outline' : 'chevron-back-outline'"></ion-icon>
+            </button>
+          </div>
+
+          <div class="brand-copy-wrap">
+            <p class="eyebrow mb-1">Trung tâm điều phối</p>
+            <h1>Marketing AI Hub</h1>
+            <p class="brand-copy mb-0">
+              Điều phối dữ liệu website, social, AI content và báo cáo trong một giao diện vận hành thống nhất.
+            </p>
+          </div>
+        </div>
+
+        <div class="menu-status-card" [class.menu-status-card-live]="!globalLoading.bootstrapping && !globalLoading.activeTasks">
+          <div class="status-head">
+            <div>
+              <div class="status-label">Tải dữ liệu hệ thống</div>
+              <div class="status-text">{{ globalLoading.statusText }}</div>
+            </div>
+            <span class="status-value">{{ globalLoading.progress }}%</span>
+          </div>
+
+          <div class="progress shell-progress" aria-hidden="true">
+            <div
+              class="progress-bar"
+              [class.progress-bar-striped]="globalLoading.bootstrapping || globalLoading.activeTasks > 0"
+              [class.progress-bar-animated]="globalLoading.bootstrapping || globalLoading.activeTasks > 0"
+              [style.width.%]="globalLoading.progress">
+            </div>
+          </div>
+
+          <div class="status-meta">
+            <span>{{ globalLoading.completedTasks }}/{{ globalLoading.totalTasks || 0 }} tác vụ</span>
+            <span *ngIf="globalLoading.activeTasks > 0">{{ globalLoading.activeTasks }} tác vụ đang chạy</span>
+            <span *ngIf="!globalLoading.activeTasks && globalLoading.completedTasks > 0">Sẵn sàng</span>
+          </div>
         </div>
 
         <div class="menu-section-label">Phân hệ</div>
@@ -18,8 +59,7 @@
               detail="false"
               [routerLink]="page.url"
               routerDirection="root"
-              [class.active-item]="isActive(page.url)"
-            >
+              [class.active-item]="isActive(page.url)">
               <ion-icon slot="start" [name]="page.icon"></ion-icon>
               <ion-label>
                 <div class="item-title">{{ page.title }}</div>
@@ -30,33 +70,63 @@
         </ion-list>
 
         <div class="menu-footer">
-          <div class="footer-label">Công nghệ</div>
+          <div class="footer-label">Ngăn xếp</div>
           <div class="stack-pills">
             <span class="stack-pill">Ionic Angular</span>
             <span class="stack-pill">Bootstrap 5</span>
             <span class="stack-pill">Chart.js</span>
-            <span class="stack-pill">Ollama Qwen 3:8B</span>
+            <span class="stack-pill">Ollama</span>
+            <span class="stack-pill">ComfyUI</span>
           </div>
         </div>
       </ion-content>
     </ion-menu>
 
-    <div class="main-shell" id="main-content">
+    <div class="main-shell" id="main-content" [class.main-shell-expanded]="menuCollapsed">
       <ion-header class="ion-no-border shell-header">
         <ion-toolbar>
           <ion-buttons slot="start">
             <ion-menu-button></ion-menu-button>
+            <button
+              class="header-collapse-button d-none d-lg-inline-flex"
+              type="button"
+              (click)="toggleMenuCollapsed()"
+              [attr.aria-label]="menuCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'">
+              <ion-icon [name]="menuCollapsed ? 'menu-outline' : 'menu-sharp'"></ion-icon>
+            </button>
           </ion-buttons>
-          <ion-title>{{ currentTitle }}</ion-title>
-          <ion-buttons slot="end">
-            <ion-chip color="warning" outline="true">
-              <ion-label>Đồng bộ Google Sheets</ion-label>
+
+          <ion-title>
+            <div class="title-stack">
+              <span class="title-main">{{ currentTitle }}</span>
+              <span class="title-note">{{ currentNote }}</span>
+            </div>
+          </ion-title>
+
+          <ion-buttons slot="end" class="header-chip-group">
+            <ion-chip outline="true" [color]="pageLoading.loading ? 'warning' : 'success'">
+              <ion-label>{{ pageLoading.loading ? 'Đang cập nhật nền' : 'Đã cập nhật' }}</ion-label>
             </ion-chip>
-            <ion-chip color="success" outline="true">
-              <ion-label>Qwen 3:8B</ion-label>
+            <ion-chip outline="true" color="medium">
+              <ion-label>{{ pageLoading.updatedAt ? ('Lúc ' + (pageLoading.updatedAt | date:'HH:mm:ss')) : 'Chưa có thời điểm cập nhật' }}</ion-label>
             </ion-chip>
           </ion-buttons>
         </ion-toolbar>
+
+        <div class="page-loading-strip" *ngIf="pageLoading.registeredTasks > 0">
+          <div class="page-loading-meta">
+            <span>{{ pageLoading.statusText }}</span>
+            <span>{{ pageLoading.progress }}%</span>
+          </div>
+          <div class="progress page-progress" aria-hidden="true">
+            <div
+              class="progress-bar"
+              [class.progress-bar-striped]="pageLoading.loading"
+              [class.progress-bar-animated]="pageLoading.loading"
+              [style.width.%]="pageLoading.progress">
+            </div>
+          </div>
+        </div>
       </ion-header>
 
       <ion-router-outlet></ion-router-outlet>

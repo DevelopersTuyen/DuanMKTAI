@@ -11,3 +11,10 @@
   line-height: 1.7;
   color: rgba(15, 23, 42, 0.86);
 }
+
+.utility-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}

@@ -16,6 +16,13 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.utility-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 @media (max-width: 767px) {
   .oauth-metrics {
     grid-template-columns: 1fr;

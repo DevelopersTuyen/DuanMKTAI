@@ -11,7 +11,13 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 from app.core.config import Settings
-from app.models import DailyReportLatestResponse, DailyReportSyncResponse
+from app.models import (
+    DailyReportDeleteResponse,
+    DailyReportHistoryItem,
+    DailyReportHistoryResponse,
+    DailyReportLatestResponse,
+    DailyReportSyncResponse,
+)
 from app.services.google_website import (
     get_sheet_values,
     load_service_account_credentials,
@@ -22,6 +28,16 @@ from app.services.website_reporting import latest_snapshot, load_website_dataset
 
 DAILY_REPORT_CACHE_TTL_SECONDS = 45
 _DAILY_REPORT_CACHE: dict[str, tuple[datetime, dict[str, str]]] = {}
+DAILY_REPORT_HEADER = [
+    "ngay",
+    "tong_quat",
+    "chi_tiet_tung_nen_tang",
+    "van_de_gap_phai",
+    "de_xuat",
+    "model_ai",
+    "nguon_ai",
+    "generated_at",
+]
 
 
 def build_daily_report_cache_key(settings: Settings) -> str:
@@ -352,20 +368,29 @@ def write_daily_report_sheet(
     row_values: list[str],
 ) -> str:
     worksheet = settings.daily_report_worksheet
-    header = [
-        "ngay",
-        "tong_quat",
-        "chi_tiet_tung_nen_tang",
-        "van_de_gap_phai",
-        "de_xuat",
-        "model_ai",
-        "nguon_ai",
-        "generated_at",
-    ]
-    new_rows = [header, row_values]
+    new_rows = [DAILY_REPORT_HEADER, row_values]
     existing_rows = get_sheet_values(settings, credentials, worksheet)
     merged_rows = merge_sheet_rows(existing_rows, new_rows, key_columns=["ngay"])
+    return overwrite_daily_report_rows(settings, credentials, merged_rows)
+
+
+def overwrite_daily_report_rows(
+    settings: Settings,
+    credentials: Credentials,
+    rows: list[list[str]],
+) -> str:
+    worksheet = settings.daily_report_worksheet
     service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
+    (
+        service.spreadsheets()
+        .values()
+        .clear(
+            spreadsheetId=settings.google_sheet_id,
+            range=worksheet,
+            body={},
+        )
+        .execute()
+    )
     response = (
         service.spreadsheets()
         .values()
@@ -373,7 +398,7 @@ def write_daily_report_sheet(
             spreadsheetId=settings.google_sheet_id,
             range=f"{worksheet}!A1",
             valueInputOption="RAW",
-            body={"values": merged_rows},
+            body={"values": rows},
         )
         .execute()
     )
@@ -466,5 +491,73 @@ def get_latest_daily_report(settings: Settings) -> DailyReportLatestResponse:
         model=latest_record.get("model_ai", ""),
         source=latest_record.get("nguon_ai", ""),
         generatedAt=latest_record.get("generated_at", ""),
+        worksheet=settings.daily_report_worksheet,
+    )
+
+
+def list_daily_reports(settings: Settings, limit: int = 30) -> DailyReportHistoryResponse:
+    credentials = load_service_account_credentials(settings)
+    rows = get_sheet_values(settings, credentials, settings.daily_report_worksheet)
+    if not rows or len(rows) <= 1:
+        return DailyReportHistoryResponse(worksheet=settings.daily_report_worksheet, reports=[])
+
+    header = rows[0]
+    records: list[dict[str, str]] = []
+    for row in rows[1:]:
+        record = {
+            column: row[index] if index < len(row) else ""
+            for index, column in enumerate(header)
+        }
+        if any(value for value in record.values()):
+            records.append(record)
+
+    ordered = sorted(
+        records,
+        key=lambda item: (item.get("ngay", ""), item.get("generated_at", "")),
+        reverse=True,
+    )[:limit]
+
+    return DailyReportHistoryResponse(
+        worksheet=settings.daily_report_worksheet,
+        reports=[
+            DailyReportHistoryItem(
+                reportDate=record.get("ngay", ""),
+                tongQuat=record.get("tong_quat", ""),
+                model=record.get("model_ai", ""),
+                source=record.get("nguon_ai", ""),
+                generatedAt=record.get("generated_at", ""),
+            )
+            for record in ordered
+        ],
+    )
+
+
+def delete_daily_report(settings: Settings, report_date: str) -> DailyReportDeleteResponse:
+    credentials = load_service_account_credentials(settings)
+    rows = get_sheet_values(settings, credentials, settings.daily_report_worksheet)
+    if not rows:
+        raise ValueError("Chưa có báo cáo ngày nào trong sheet reportday.")
+
+    header = rows[0]
+    date_index = header.index("ngay") if "ngay" in header else 0
+    filtered_rows = [header]
+    found = False
+
+    for row in rows[1:]:
+        row_date = row[date_index] if date_index < len(row) else ""
+        if row_date == report_date:
+            found = True
+            continue
+        if any(cell for cell in row):
+            filtered_rows.append(row)
+
+    if not found:
+        raise ValueError("Không tìm thấy báo cáo ngày để xóa.")
+
+    overwrite_daily_report_rows(settings, credentials, filtered_rows)
+    return DailyReportDeleteResponse(
+        status="success",
+        message="Đã xóa báo cáo ngày khỏi worksheet reportday.",
+        reportDate=report_date,
         worksheet=settings.daily_report_worksheet,
     )

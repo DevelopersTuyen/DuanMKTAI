@@ -4,305 +4,364 @@
       <span class="section-kicker">Tiếp nhận dữ liệu</span>
       <h2 class="fw-bold mb-3">Thu thập và đồng bộ dữ liệu từ nhiều tài khoản, nhiều trang và nhiều website.</h2>
       <p class="card-copy mb-0">
-        Mỗi kết nối được thiết kế để lấy bài viết, video, lượt thích, bình luận, chia sẻ, lượt xem, CTR và chỉ số website,
-        sau đó đẩy về Google Sheets để theo dõi và phân tích tập trung.
+        Mỗi kết nối được thiết kế để lấy bài viết, video, tương tác, lượt xem, CTR và chỉ số website, sau đó đẩy về Google Sheets để theo dõi tập trung.
       </p>
+      <div class="utility-actions mt-3">
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="refreshAll()">Làm mới tất cả</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copySpreadsheetId()">Sao chép Sheet ID</button>
+        <button class="btn btn-outline-light btn-sm" type="button" (click)="copyWarnings()">Sao chép cảnh báo</button>
+      </div>
+      <div class="alert alert-success mt-3 mb-0" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+      <div class="alert alert-warning mt-3 mb-0" *ngIf="utilityError">{{ utilityError }}</div>
     </section>
 
-    <section class="row g-4 mb-4">
-      <div class="col-md-6 col-xl-4" *ngFor="let channel of syncChannels">
-        <article class="glass-card p-4 h-100">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <div class="card-title">{{ channel.name }}</div>
-              <div class="card-copy">{{ channel.accounts }} cụm tài khoản / trang</div>
-            </div>
-            <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
-          </div>
-          <div class="d-flex justify-content-between mb-2">
-            <span class="muted-text">Lần đồng bộ gần nhất</span>
-            <strong>{{ channel.lastSync }}</strong>
-          </div>
-          <div class="progress mb-2">
-            <div class="progress-bar bg-app-accent" [style.width.%]="channel.healthScore"></div>
-          </div>
-          <div class="muted-text">Độ ổn định kết nối: {{ channel.healthScore }}%</div>
-        </article>
+    <section class="page-state" *ngIf="isLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
       </div>
     </section>
 
-    <section class="row g-4 mb-4">
-      <div class="col-12">
-        <article class="glass-card p-4">
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
-            <div>
-              <div class="card-title">Đồng bộ mạng xã hội</div>
-              <div class="card-copy">
-                Facebook, LinkedIn, YouTube và TikTok sẽ ghi vào các sheet riêng để AI và báo cáo ngày đọc lại sau.
+    <section class="page-state" *ngIf="!isLoading && loadError">
+      <div class="page-state-box">
+        <div class="fw-semibold mb-2">Không tải được cấu trúc đồng bộ</div>
+        <div class="muted-text">{{ loadError }}</div>
+      </div>
+    </section>
+
+    <ng-container *ngIf="!isLoading && !loadError">
+      <section class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-4" *ngFor="let channel of syncChannels">
+          <article class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <div class="card-title">{{ channel.name }}</div>
+                <div class="card-copy">{{ channel.accounts }} cụm tài khoản / trang</div>
               </div>
+              <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
             </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span class="muted-text">Lần đồng bộ gần nhất</span>
+              <strong>{{ channel.lastSync }}</strong>
+            </div>
+            <div class="progress mb-2">
+              <div class="progress-bar bg-app-accent" [style.width.%]="channel.healthScore"></div>
+            </div>
+            <div class="muted-text">Độ ổn định kết nối: {{ channel.healthScore }}%</div>
+          </article>
+        </div>
+      </section>
 
-            <div class="d-grid d-md-flex gap-2">
-              <span class="status-chip" [ngClass]="hasReadySocialPlatform() ? 'status-live' : 'status-warning'">
-                {{ hasReadySocialPlatform() ? 'Có nền tảng sẵn sàng' : 'Thiếu cấu hình' }}
-              </span>
-              <button class="btn btn-app px-4" (click)="syncSocialPlatforms()" [disabled]="isSocialSyncing">
-                <span *ngIf="!isSocialSyncing">Đồng bộ social</span>
-                <span *ngIf="isSocialSyncing" class="d-inline-flex align-items-center gap-2">
-                  <span class="spinner-border spinner-border-sm"></span>
-                  Đang đồng bộ
+      <section class="row g-4 mb-4">
+        <div class="col-12">
+          <article class="glass-card p-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Đồng bộ mạng xã hội</div>
+                <div class="card-copy">Facebook, LinkedIn, YouTube và TikTok sẽ ghi vào các sheet riêng để AI và báo cáo ngày đọc lại.</div>
+              </div>
+              <div class="d-grid d-md-flex gap-2">
+                <span class="status-chip" [ngClass]="hasReadySocialPlatform() ? 'status-live' : 'status-warning'">
+                  {{ hasReadySocialPlatform() ? 'Có nền tảng sẵn sàng' : 'Thiếu cấu hình' }}
                 </span>
-              </button>
-            </div>
-          </div>
-
-          <div class="row g-3">
-            <div class="col-md-6 col-xl-3" *ngFor="let status of socialStatuses">
-              <article class="soft-site-card h-100">
-                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-                  <div>
-                    <div class="fw-bold">{{ status.name }}</div>
-                    <div class="muted-text small">Sheet {{ status.worksheet }}</div>
-                  </div>
-                  <span class="status-chip" [ngClass]="getSocialStatusClass(status)">
-                    {{ status.ready ? 'Sẵn sàng' : (status.hasCredentials || status.configuredAssets > 0 ? 'Thiếu một phần' : 'Chưa cấu hình') }}
+                <button class="btn btn-outline-light" type="button" (click)="copySocialSummary()">Sao chép social</button>
+                <button class="btn btn-app px-4" (click)="syncSocialPlatforms()" [disabled]="isSocialSyncing">
+                  <span *ngIf="!isSocialSyncing">Đồng bộ social</span>
+                  <span *ngIf="isSocialSyncing" class="d-inline-flex align-items-center gap-2">
+                    <span class="spinner-border spinner-border-sm"></span>
+                    Đang đồng bộ
                   </span>
-                </div>
+                </button>
+              </div>
+            </div>
 
-                <div class="muted-text mb-2">{{ status.message }}</div>
-                <div class="muted-text small">Tài nguyên cấu hình: {{ status.configuredAssets }}</div>
-
-                <div class="soft-list mt-3" *ngIf="status.warnings.length">
-                  <div class="soft-list-item" *ngFor="let warning of status.warnings">
-                    <span class="badge-dot"></span>
-                    <div class="muted-text">{{ warning }}</div>
+            <div class="row g-3">
+              <div class="col-md-6 col-xl-3" *ngFor="let status of socialStatuses">
+                <article class="soft-site-card h-100">
+                  <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                    <div>
+                      <div class="fw-bold">{{ status.name }}</div>
+                      <div class="muted-text small">Sheet {{ status.worksheet }}</div>
+                    </div>
+                    <span class="status-chip" [ngClass]="getSocialStatusClass(status)">
+                      {{ status.ready ? 'Sẵn sàng' : (status.hasCredentials || status.configuredAssets > 0 ? 'Thiếu một phần' : 'Chưa cấu hình') }}
+                    </span>
                   </div>
-                </div>
-              </article>
-            </div>
-          </div>
 
-          <div class="alert alert-danger mt-3 mb-0" *ngIf="socialSyncError">{{ socialSyncError }}</div>
-          <div class="alert alert-success mt-3 mb-0" *ngIf="socialSyncResult">
-            {{ socialSyncResult.message }}
-          </div>
+                  <div class="muted-text mb-2">{{ status.message }}</div>
+                  <div class="muted-text small">Tài nguyên cấu hình: {{ status.configuredAssets }}</div>
 
-          <div class="table-responsive mt-3" *ngIf="socialSyncResult?.results?.length">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Nền tảng</th>
-                  <th>Sheet</th>
-                  <th>Trạng thái</th>
-                  <th>Số dòng</th>
-                  <th>Chi tiết</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let result of socialSyncResult?.results">
-                  <td class="fw-semibold">{{ result.platform }}</td>
-                  <td>{{ result.worksheet }}</td>
-                  <td>{{ result.status }}</td>
-                  <td>{{ result.rows }}</td>
-                  <td>{{ result.detail }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="row g-4 mb-4">
-      <div class="col-12">
-        <article class="glass-card p-4">
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
-            <div>
-              <div class="card-title">Đồng bộ website</div>
-              <div class="card-copy">
-                Đồng bộ Google Analytics 4 và Google Search Console vào
-                <strong>{{ googleStatus?.worksheet || 'website' }}</strong>, đồng bộ WordPress posts vào
-                <strong>{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</strong>.
-              </div>
-            </div>
-
-            <div class="d-grid d-md-flex gap-2">
-              <span class="status-chip" [ngClass]="googleStatus?.ready ? 'status-live' : 'status-warning'">
-                {{ googleStatus?.ready ? 'Sẵn sàng' : 'Thiếu cấu hình' }}
-              </span>
-              <button class="btn btn-app px-4" (click)="syncGoogleWebsite()" [disabled]="isSyncing">
-                <span *ngIf="!isSyncing">Đồng bộ website</span>
-                <span *ngIf="isSyncing" class="d-inline-flex align-items-center gap-2">
-                  <span class="spinner-border spinner-border-sm"></span>
-                  Đang đồng bộ
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div class="row g-3">
-            <div class="col-md-4">
-              <div class="soft-list-item h-100">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>Website WordPress</strong>
-                  <div class="muted-text">{{ googleStatus?.wordpressSitesCount || 0 }} site đã cấu hình</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="soft-list-item h-100">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>Google Sheet</strong>
-                  <div class="muted-text">{{ googleStatus?.spreadsheetId || 'Chưa có ID' }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="soft-list-item h-100">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>Thuộc tính GA4</strong>
-                  <div class="muted-text">{{ googleStatus?.analyticsPropertyId || 'Chưa có thuộc tính' }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="soft-list-item h-100">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>Search Console</strong>
-                  <div class="muted-text">{{ googleStatus?.searchConsoleSiteUrl || 'Chưa có URL site' }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="soft-list-item h-100">
-                <span class="badge-dot"></span>
-                <div>
-                  <strong>Trang tính bài viết</strong>
-                  <div class="muted-text">{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="alert alert-danger mt-3 mb-0" *ngIf="syncError">{{ syncError }}</div>
-          <div class="alert alert-success mt-3 mb-0" *ngIf="syncResult">
-            {{ syncResult.message }} Số trang GA: {{ syncResult.analyticsRows }}, số trang GSC: {{ syncResult.searchConsoleRows }}, số bài WordPress: {{ syncResult.wordpressPosts }}.
-          </div>
-
-          <div class="soft-list mt-3" *ngIf="googleStatus?.warnings?.length">
-            <div class="soft-list-item" *ngFor="let warning of googleStatus?.warnings">
-              <span class="badge-dot"></span>
-              <div class="muted-text">{{ warning }}</div>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="row g-4 mb-4">
-      <div class="col-12">
-        <article class="glass-card p-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div>
-              <div class="card-title">Theo dõi site WordPress</div>
-              <div class="card-copy">
-                Hai site lỗi tạm thời chuyển sang theo dõi ngoài giao diện. Site đồng bộ ổn định vẫn tiếp tục đẩy dữ liệu vào sheet.
-              </div>
-            </div>
-            <span class="pill">Chế độ xử lý giao diện</span>
-          </div>
-
-          <div class="row g-3">
-            <div class="col-md-6 col-xl-4" *ngFor="let site of wordpressSites">
-              <article class="soft-site-card h-100">
-                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-                  <div>
-                    <div class="fw-bold">{{ site.name }}</div>
-                    <div class="muted-text small">
-                      {{ site.mode === 'auto' ? 'Luồng tự động' : 'Theo dõi thủ công' }}
+                  <div class="soft-list mt-3" *ngIf="status.warnings.length">
+                    <div class="soft-list-item" *ngFor="let warning of status.warnings">
+                      <span class="badge-dot"></span>
+                      <div class="muted-text">{{ warning }}</div>
                     </div>
                   </div>
-                  <span class="status-chip" [ngClass]="getWordPressSiteState(site.name).chipClass">
-                    {{ getWordPressSiteState(site.name).label }}
+                </article>
+              </div>
+            </div>
+
+            <div class="alert alert-danger mt-3 mb-0" *ngIf="socialSyncError">{{ socialSyncError }}</div>
+            <div class="alert alert-success mt-3 mb-0" *ngIf="socialSyncResult">{{ socialSyncResult.message }}</div>
+
+            <div class="table-responsive mt-3" *ngIf="socialSyncResult?.results?.length">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Nền tảng</th>
+                    <th>Sheet</th>
+                    <th>Trạng thái</th>
+                    <th>Số dòng</th>
+                    <th>Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let result of socialSyncResult?.results">
+                    <td class="fw-semibold">{{ result.platform }}</td>
+                    <td>{{ result.worksheet }}</td>
+                    <td>{{ result.status }}</td>
+                    <td>{{ result.rows }}</td>
+                    <td>{{ result.detail }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4 mb-4">
+        <div class="col-12">
+          <article class="glass-card p-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Đồng bộ website</div>
+                <div class="card-copy">
+                  Đồng bộ Google Analytics 4 và Google Search Console vào <strong>{{ googleStatus?.worksheet || 'website' }}</strong>,
+                  đồng bộ WordPress posts vào <strong>{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</strong>.
+                </div>
+              </div>
+
+              <div class="d-grid d-md-flex gap-2">
+                <span class="status-chip" [ngClass]="googleStatus?.ready ? 'status-live' : 'status-warning'">
+                  {{ googleStatus?.ready ? 'Sẵn sàng' : 'Thiếu cấu hình' }}
+                </span>
+                <button class="btn btn-outline-light" type="button" (click)="copySpreadsheetId()">Sao chép Sheet ID</button>
+                <button class="btn btn-app px-4" (click)="syncGoogleWebsite()" [disabled]="isSyncing">
+                  <span *ngIf="!isSyncing">Đồng bộ website</span>
+                  <span *ngIf="isSyncing" class="d-inline-flex align-items-center gap-2">
+                    <span class="spinner-border spinner-border-sm"></span>
+                    Đang đồng bộ
                   </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Website WordPress</strong>
+                    <div class="muted-text">{{ googleStatus?.wordpressSitesCount || 0 }} site đã cấu hình</div>
+                  </div>
                 </div>
-
-                <div class="muted-text">
-                  {{ getWordPressSiteState(site.name).detail }}
+              </div>
+              <div class="col-md-4">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Google Sheet</strong>
+                    <div class="muted-text">{{ googleStatus?.spreadsheetId || 'Chưa có ID' }}</div>
+                  </div>
                 </div>
-              </article>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="row g-4">
-      <div class="col-xl-8">
-        <article class="glass-card table-surface p-3 p-lg-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div>
-              <div class="card-title">Bản đồ tài khoản quản lý</div>
-              <div class="card-copy">Hệ thống hỗ trợ gom nhóm theo tài khoản, trang, thuộc tính và website.</div>
-            </div>
-            <span class="pill">Google Sheets sẵn sàng</span>
-          </div>
-
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Nền tảng</th>
-                  <th>Cụm tài khoản</th>
-                  <th>Tài nguyên</th>
-                  <th>Đích lưu trữ</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let account of accounts">
-                  <td class="fw-semibold">{{ account.platform }}</td>
-                  <td>{{ account.account }}</td>
-                  <td>{{ account.assets }}</td>
-                  <td>{{ account.destination }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </div>
-
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Luồng lưu trữ</div>
-          <div class="soft-list">
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Sheet website</strong>
-                <div class="muted-text">Lưu chỉ số Google theo từng trang và từng nguồn.</div>
+              </div>
+              <div class="col-md-4">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Thuộc tính GA4</strong>
+                    <div class="muted-text">{{ googleStatus?.analyticsPropertyId || 'Chưa có thuộc tính' }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Search Console</strong>
+                    <div class="muted-text">{{ googleStatus?.searchConsoleSiteUrl || 'Chưa có URL site' }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="soft-list-item h-100">
+                  <span class="badge-dot"></span>
+                  <div>
+                    <strong>Trang tính bài viết</strong>
+                    <div class="muted-text">{{ googleStatus?.wordpressWorksheet || 'Post_web' }}</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Sheet Post_web</strong>
-                <div class="muted-text">Lưu bài viết WordPress và ánh xạ chỉ số GA4, GSC.</div>
+
+            <div class="row g-3 mt-1" *ngIf="googleStatus?.searchConsoleSites?.length">
+              <div class="col-12">
+                <div class="card-copy mb-2">Danh sách site Search Console đang có quyền</div>
+                <div class="d-flex flex-wrap gap-2">
+                  <span class="pill" *ngFor="let site of googleStatus?.searchConsoleSites">{{ site }}</span>
+                </div>
               </div>
             </div>
-            <div class="soft-list-item">
-              <span class="badge-dot"></span>
-              <div>
-                <strong>Sheet social riêng</strong>
-                <div class="muted-text">Facebook, LinkedIn, YouTube và TikTok sẽ có sheet riêng để AI đọc lại.</div>
+
+            <div class="row g-3 mt-3" *ngIf="googleStatus?.siteMappings?.length">
+              <div class="col-12">
+                <div class="card-copy mb-2">Map riêng GSC site vào WordPress site</div>
+              </div>
+              <div class="col-md-6 col-xl-4" *ngFor="let mapping of googleStatus?.siteMappings">
+                <article class="soft-site-card h-100">
+                  <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                    <div>
+                      <div class="fw-bold">{{ mapping.siteName }}</div>
+                      <div class="muted-text small">{{ mapping.wordpressBaseUrl }}</div>
+                    </div>
+                    <span class="status-chip" [ngClass]="mapping.gscSiteUrl ? 'status-live' : 'status-warning'">
+                      {{ mapping.gscSiteUrl ? 'ĐÃ MAP' : 'CHƯA MAP' }}
+                    </span>
+                  </div>
+                  <div class="muted-text">{{ mapping.gscSiteUrl || 'Chưa tìm thấy GSC site cùng domain trong quyền hiện tại.' }}</div>
+                </article>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+
+            <div class="alert alert-danger mt-3 mb-0" *ngIf="syncError">{{ syncError }}</div>
+            <div class="alert alert-success mt-3 mb-0" *ngIf="syncResult">
+              {{ syncResult.message }} Số trang GA: {{ syncResult.analyticsRows }}, số trang GSC: {{ syncResult.searchConsoleRows }}, số bài WordPress: {{ syncResult.wordpressPosts }}.
+            </div>
+
+            <div class="soft-list mt-3" *ngIf="googleStatus?.warnings?.length">
+              <div class="soft-list-item" *ngFor="let warning of googleStatus?.warnings">
+                <span class="badge-dot"></span>
+                <div class="muted-text">{{ warning }}</div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4 mb-4">
+        <div class="col-12">
+          <article class="glass-card p-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Theo dõi site WordPress</div>
+                <div class="card-copy">Các site được tách trạng thái đồng bộ dữ liệu và trạng thái map GSC để bạn nhìn rõ site nào đã đủ dữ liệu SEO thật.</div>
+              </div>
+              <span class="pill">Chế độ xử lý giao diện</span>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6 col-xl-4" *ngFor="let site of wordpressSites">
+                <article class="soft-site-card h-100">
+                  <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                    <div>
+                      <div class="fw-bold">{{ site.name }}</div>
+                      <div class="muted-text small">{{ site.mode === 'auto' ? 'Luồng tự động' : 'Theo dõi thủ công' }}</div>
+                    </div>
+                    <span class="status-chip" [ngClass]="getWordPressSiteState(site.name).chipClass">
+                      {{ getWordPressSiteState(site.name).label }}
+                    </span>
+                  </div>
+
+                  <div class="muted-text">{{ getWordPressSiteState(site.name).detail }}</div>
+                  <div class="muted-text small mt-2">{{ getGscMappingState(site.name).detail }}</div>
+                  <span class="status-chip mt-3" [ngClass]="getGscMappingState(site.name).chipClass">
+                    {{ getGscMappingState(site.name).label }}
+                  </span>
+                </article>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4">
+        <div class="col-xl-8">
+          <article class="glass-card table-surface p-3 p-lg-4">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Bản đồ tài khoản quản lý</div>
+                <div class="card-copy">Hệ thống hỗ trợ gom nhóm theo tài khoản, trang, thuộc tính và website.</div>
+              </div>
+              <span class="pill">Trang {{ accountPage }}/{{ accountTotalPages }}</span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Nền tảng</th>
+                    <th>Cụm tài khoản</th>
+                    <th>Tài nguyên</th>
+                    <th>Đích lưu trữ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let account of pagedAccounts">
+                    <td class="fw-semibold">{{ account.platform }}</td>
+                    <td>{{ account.account }}</td>
+                    <td>{{ account.assets }}</td>
+                    <td>{{ account.destination }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-shell" *ngIf="accounts.length > accountPageSize">
+              <div class="pagination-meta">
+                Hiển thị {{ (accountPage - 1) * accountPageSize + 1 }} -
+                {{ ((accountPage - 1) * accountPageSize) + pagedAccounts.length }} / {{ accounts.length }} cụm
+              </div>
+              <div class="pagination-actions">
+                <button class="btn btn-outline-light" type="button" (click)="goToAccountPage(accountPage - 1)" [disabled]="accountPage === 1">Trước</button>
+                <button class="btn btn-outline-light" type="button" (click)="goToAccountPage(accountPage + 1)" [disabled]="accountPage === accountTotalPages">Sau</button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="col-xl-4">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-3">Luồng lưu trữ</div>
+            <div class="soft-list">
+              <div class="soft-list-item">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Sheet website</strong>
+                  <div class="muted-text">Lưu chỉ số Google theo từng trang, từng nguồn và từng GSC site.</div>
+                </div>
+              </div>
+              <div class="soft-list-item">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Sheet Post_web</strong>
+                  <div class="muted-text">Lưu bài viết WordPress và ánh xạ chỉ số GA4, GSC theo từng website.</div>
+                </div>
+              </div>
+              <div class="soft-list-item">
+                <span class="badge-dot"></span>
+                <div>
+                  <strong>Sheet social riêng</strong>
+                  <div class="muted-text">Facebook, LinkedIn, YouTube và TikTok có sheet riêng để AI đọc lại.</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </ng-container>
   </div>
 </ion-content>

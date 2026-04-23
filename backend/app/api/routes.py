@@ -11,12 +11,17 @@ from app.models import (
     AutomationStatusResponse,
     CampaignsResponse,
     ContentDraftConfirmResponse,
+    ContentDraftDeleteResponse,
+    ContentDraftGenerationStartResponse,
+    ContentDraftGenerationStatusResponse,
     ContentDraftGenerateResponse,
     ContentDraftListResponse,
     ContentGenerateResponse,
     ContentResponse,
     DashboardResponse,
     DataSyncResponse,
+    DailyReportDeleteResponse,
+    DailyReportHistoryResponse,
     DailyReportLatestResponse,
     DailyReportSyncResponse,
     GoogleWebsiteStatusResponse,
@@ -30,6 +35,8 @@ from app.models import (
     OAuthStartResponse,
     ReportsResponse,
     SchedulerResponse,
+    SchedulerSaveResponse,
+    SchedulerUpdateRequest,
     SeoInsightsResponse,
     SettingsSaveResponse,
     SettingsResponse,
@@ -38,8 +45,20 @@ from app.models import (
     SocialPlatformsSyncResponse,
 )
 from app.services.automation import automation_manager
-from app.services.content_studio import confirm_content_draft, generate_content_draft, list_content_drafts
-from app.services.daily_report import get_latest_daily_report, sync_daily_report
+from app.services.content_studio import (
+    confirm_content_draft,
+    delete_content_draft,
+    generate_content_draft,
+    get_content_draft_generation_status,
+    list_content_drafts,
+    start_content_draft_generation,
+)
+from app.services.daily_report import (
+    delete_daily_report,
+    get_latest_daily_report,
+    list_daily_reports,
+    sync_daily_report,
+)
 from app.services.google_website import get_google_website_status, sync_google_website_data
 from app.services.local_image_generation import probe_local_image_provider
 from app.services.local_ai_analysis import get_local_ai_analysis
@@ -49,7 +68,6 @@ from app.services.mock_data import (
     get_data_sync_data,
     get_integrations_data,
     get_reports_data,
-    get_scheduler_data,
 )
 from app.services.oauth_connections import (
     build_authorization_url,
@@ -59,6 +77,7 @@ from app.services.oauth_connections import (
     refresh_provider_connection,
 )
 from app.services.ollama_client import generate_marketing_copy, get_ollama_queue_status
+from app.services.scheduler_settings import get_scheduler_settings, save_scheduler_settings
 from app.services.social_platforms import get_social_platforms_status, sync_social_platforms
 from app.services.system_settings import build_settings_response, get_runtime_settings, save_system_settings
 from app.services.website_reporting import (
@@ -142,12 +161,20 @@ async def content_drafts(settings: Settings = Depends(get_runtime_settings)) -> 
     return list_content_drafts(settings)
 
 
-@router.post("/content/drafts/generate", response_model=ContentDraftGenerateResponse)
+@router.post("/content/drafts/generate", response_model=ContentDraftGenerationStartResponse)
 async def content_drafts_generate(
     payload: MarketingPromptRequest,
     settings: Settings = Depends(get_runtime_settings),
-) -> ContentDraftGenerateResponse:
-    return await generate_content_draft(payload, settings)
+) -> ContentDraftGenerationStartResponse:
+    return start_content_draft_generation(payload, settings)
+
+
+@router.get("/content/drafts/generate/{job_id}", response_model=ContentDraftGenerationStatusResponse)
+async def content_drafts_generate_status(job_id: str) -> ContentDraftGenerationStatusResponse:
+    try:
+        return get_content_draft_generation_status(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/content/drafts/{draft_id}/confirm", response_model=ContentDraftConfirmResponse)
@@ -157,6 +184,17 @@ async def content_drafts_confirm(
 ) -> ContentDraftConfirmResponse:
     try:
         return confirm_content_draft(settings, draft_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/content/drafts/{draft_id}", response_model=ContentDraftDeleteResponse)
+async def content_drafts_delete(
+    draft_id: str,
+    settings: Settings = Depends(get_runtime_settings),
+) -> ContentDraftDeleteResponse:
+    try:
+        return delete_content_draft(settings, draft_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -173,8 +211,16 @@ async def content_generated_image(path: str = Query(..., min_length=1)) -> FileR
 
 
 @router.get("/scheduler", response_model=SchedulerResponse)
-async def scheduler() -> SchedulerResponse:
-    return get_scheduler_data()
+async def scheduler(settings: Settings = Depends(get_settings)) -> SchedulerResponse:
+    return get_scheduler_settings(settings)
+
+
+@router.put("/scheduler", response_model=SchedulerSaveResponse)
+async def scheduler_save(
+    payload: SchedulerUpdateRequest,
+    settings: Settings = Depends(get_settings),
+) -> SchedulerSaveResponse:
+    return save_scheduler_settings(settings, payload)
 
 
 @router.get("/campaigns", response_model=CampaignsResponse)
@@ -276,6 +322,27 @@ async def reports_daily_latest(settings: Settings = Depends(get_runtime_settings
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Không thể đọc báo cáo ngày: {exc}") from exc
+
+
+@router.get("/reports/daily/history", response_model=DailyReportHistoryResponse)
+async def reports_daily_history(settings: Settings = Depends(get_runtime_settings)) -> DailyReportHistoryResponse:
+    try:
+        return list_daily_reports(settings)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"KhĂ´ng thá»ƒ Ä‘á»c lá»‹ch sá»­ bĂ¡o cĂ¡o ngĂ y: {exc}") from exc
+
+
+@router.delete("/reports/daily/{report_date}", response_model=DailyReportDeleteResponse)
+async def reports_daily_delete(
+    report_date: str,
+    settings: Settings = Depends(get_runtime_settings),
+) -> DailyReportDeleteResponse:
+    try:
+        return delete_daily_report(settings, report_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"XĂ³a bĂ¡o cĂ¡o ngĂ y tháº¥t báº¡i: {exc}") from exc
 
 
 @router.get("/settings/defaults", response_model=SettingsResponse)

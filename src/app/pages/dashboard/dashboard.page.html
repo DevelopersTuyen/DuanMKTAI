@@ -2,36 +2,32 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <div class="row align-items-center g-4">
-        <div class="col-lg-8 position-relative">
+        <div class="col-lg-8">
           <span class="section-kicker">Trung tâm điều phối marketing</span>
-          <h2 class="display-6 fw-bold mb-3">Theo dõi dữ liệu website, WordPress và SEO thật trong một bảng điều khiển duy nhất.</h2>
-          <p class="lead muted-text mb-4">
-            Bảng điều khiển này đang đọc dữ liệu thật từ Google Analytics, Google Sheets đồng bộ và bài viết WordPress,
-            sau đó tổng hợp lại để hiển thị các chỉ số website quan trọng nhất.
+          <h2 class="fw-bold mb-3">Theo dõi dữ liệu website, WordPress, SEO và phân tích AI local trong một bảng điều khiển duy nhất.</h2>
+          <p class="card-copy mb-0">
+            Trang này đang đọc dữ liệu thật từ backend và các sheet đồng bộ. Toàn bộ hiển thị đã được tối ưu theo trạng thái tải dữ liệu và bề rộng làm việc.
           </p>
-          <div class="d-flex flex-wrap gap-2">
-            <span class="pill">Thuộc tính GA4</span>
-            <span class="pill">WordPress</span>
-            <span class="pill">Google Sheets</span>
-            <span class="pill">Dữ liệu trang GSC</span>
-          </div>
         </div>
 
         <div class="col-lg-4">
           <div class="glass-card metric-tile h-100">
+            <div class="utility-actions mb-3">
+              <button class="btn btn-outline-light btn-sm" type="button" (click)="refreshDashboard()">Làm mới</button>
+              <button class="btn btn-outline-light btn-sm" type="button" (click)="copyAiAnalysis()">Sao chép AI</button>
+              <button class="btn btn-outline-light btn-sm" type="button" (click)="downloadAiAnalysis()">Tải TXT</button>
+            </div>
             <div class="metric-label">Phân tích AI cục bộ</div>
-            <div class="metric-value">{{ localAiAnalysis?.model || 'qwen3:8b' }}</div>
+            <div class="metric-value">{{ localAiAnalysis?.model || 'AI local' }}</div>
             <p class="metric-note mb-3">
-              {{ localAiAnalysis?.summary || 'Hệ thống sẽ dùng Ollama cục bộ để phân tích dữ liệu sheet khi có kết quả.' }}
+              {{ localAiAnalysis?.summary || 'Bản tóm tắt AI sẽ hiển thị tại đây sau khi backend xử lý xong.' }}
             </p>
             <div class="soft-list">
               <div class="soft-list-item">
                 <span class="badge-dot"></span>
                 <div>
                   <strong>Nguồn phân tích</strong>
-                  <div class="muted-text">
-                    {{ localAiAnalysis?.source === 'ollama' ? 'Ollama cục bộ' : 'Bản phân tích dự phòng' }}
-                  </div>
+                  <div class="muted-text">{{ localAiAnalysis?.source === 'ollama' ? 'Ollama cục bộ' : 'Fallback' }}</div>
                 </div>
               </div>
               <div class="soft-list-item">
@@ -46,147 +42,214 @@
           </div>
         </div>
       </div>
+      <div class="alert alert-success mt-3 mb-0" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+      <div class="alert alert-warning mt-3 mb-0" *ngIf="utilityError">{{ utilityError }}</div>
     </section>
 
-    <section class="row g-3 mb-4">
-      <div class="col-12 col-md-6 col-xl-3" *ngFor="let kpi of kpis">
-        <article class="glass-card metric-tile h-100">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div class="metric-label">{{ kpi.label }}</div>
-            <span class="trend-pill" [ngClass]="kpi.trendTone">{{ kpi.trend }}</span>
-          </div>
-          <div class="metric-value">{{ kpi.value }}</div>
-          <p class="metric-note">{{ kpi.note }}</p>
-        </article>
+    <section class="page-state" *ngIf="isLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
       </div>
     </section>
 
-    <section class="row g-4 mb-4">
-      <div class="col-xl-8">
-        <article class="glass-card p-4 h-100">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div>
-              <div class="card-title">Xu hướng lưu lượng truy cập website</div>
-              <div class="card-copy">Tổng hợp số phiên website thật theo lịch sử đồng bộ gần nhất.</div>
-            </div>
-            <span class="pill">Lịch sử website</span>
-          </div>
-          <div class="chart-wrap">
-            <canvas #performanceChart></canvas>
-          </div>
-        </article>
-      </div>
-
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Tỷ trọng lượt xem trang theo domain</div>
-          <div class="card-copy mb-3">Phân bổ lưu lượng website thật theo từng domain đang được đồng bộ.</div>
-          <div class="doughnut-wrap">
-            <canvas #distributionChart></canvas>
-          </div>
-          <div class="soft-list mt-4">
-            <div class="d-flex justify-content-between align-items-center" *ngFor="let item of channelBreakdown">
-              <span class="fw-semibold">{{ item.name }}</span>
-              <span class="muted-text">{{ item.value }}%</span>
-            </div>
-          </div>
-        </article>
+    <section class="page-state" *ngIf="!isLoading && loadError">
+      <div class="page-state-box">
+        <div class="fw-semibold mb-2">Không tải được dữ liệu tổng quan</div>
+        <div class="muted-text">{{ loadError }}</div>
       </div>
     </section>
 
-    <section class="row g-4">
-      <div class="col-lg-6">
-        <article class="glass-card p-4 h-100">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <div class="card-title">Tình trạng đồng bộ dữ liệu</div>
-              <div class="card-copy">Cụm website, WordPress site và thuộc tính GA4 đang được đồng bộ thật.</div>
+    <ng-container *ngIf="!isLoading && !loadError">
+      <section class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3" *ngFor="let kpi of kpis">
+          <article class="glass-card metric-tile h-100">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div class="metric-label">{{ kpi.label }}</div>
+              <span class="trend-pill" [ngClass]="kpi.trendTone">{{ kpi.trend }}</span>
             </div>
-            <span class="pill">Đẩy về Google Sheets</span>
-          </div>
+            <div class="metric-value">{{ kpi.value }}</div>
+            <p class="metric-note">{{ kpi.note }}</p>
+          </article>
+        </div>
+      </section>
 
-          <div class="soft-list">
-            <div class="soft-list-item" *ngFor="let channel of syncChannels">
-              <span class="badge-dot"></span>
-              <div class="w-100">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                  <div>
-                    <div class="fw-bold">{{ channel.name }}</div>
-                    <div class="muted-text">{{ channel.accounts }} cụm tài khoản / trang</div>
+      <section class="row g-4 mb-4">
+        <div class="col-xl-8">
+          <article class="glass-card p-4 h-100">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Xu hướng lưu lượng truy cập website</div>
+                <div class="card-copy">Tổng hợp số phiên website thật theo lịch sử đồng bộ gần nhất.</div>
+              </div>
+              <span class="pill">Lịch sử website</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas #performanceChart></canvas>
+            </div>
+          </article>
+        </div>
+
+        <div class="col-xl-4">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-1">Tỷ trọng lượt xem theo domain</div>
+            <div class="card-copy mb-3">Phân bổ lưu lượng website thật theo từng domain đang được đồng bộ.</div>
+            <div class="doughnut-wrap">
+              <canvas #distributionChart></canvas>
+            </div>
+            <div class="soft-list mt-4">
+              <div class="d-flex justify-content-between align-items-center" *ngFor="let item of channelBreakdown">
+                <span class="fw-semibold">{{ item.name }}</span>
+                <span class="muted-text">{{ item.value }}%</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-3 mb-4" *ngIf="websiteSummaries.length">
+        <div class="col-md-6 col-xl-4" *ngFor="let site of websiteSummaries">
+          <article class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+              <div>
+                <div class="card-title">{{ site.site }}</div>
+                <div class="muted-text small">{{ site.siteUrl || 'Chưa có URL chuẩn' }}</div>
+              </div>
+              <span class="status-chip" [ngClass]="site.gscSiteUrl ? 'status-live' : 'status-warning'">{{ site.syncStatus }}</span>
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <div class="muted-text small">Page views</div>
+                <strong>{{ site.pageViews }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Sessions</div>
+                <strong>{{ site.sessions }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Bài viết</div>
+                <strong>{{ site.posts }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Trang SEO</div>
+                <strong>{{ site.trackedPages }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">Clicks</div>
+                <strong>{{ site.clicks }}</strong>
+              </div>
+              <div class="col-6">
+                <div class="muted-text small">CTR / Position</div>
+                <strong>{{ site.ctr }}% / {{ site.position }}</strong>
+              </div>
+            </div>
+            <div class="muted-text small mt-3">
+              GA4: {{ site.gaPropertyId || 'Chưa map' }} | GSC: {{ site.gscSiteUrl || 'Chưa map' }}
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-4">
+        <div class="col-lg-6">
+          <article class="glass-card p-4 h-100">
+            <div class="panel-head mb-3">
+              <div>
+                <div class="card-title">Tình trạng đồng bộ dữ liệu</div>
+                <div class="card-copy">Cụm website, WordPress site và thuộc tính GA4 đang được đồng bộ thật.</div>
+              </div>
+              <div class="utility-actions">
+                <span class="pill">Đẩy về Google Sheets</span>
+                <button class="btn btn-outline-light btn-sm" type="button" (click)="copySyncSummary()">Sao chép tóm tắt</button>
+              </div>
+            </div>
+
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let channel of syncChannels">
+                <span class="badge-dot"></span>
+                <div class="w-100">
+                  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                      <div class="fw-bold">{{ channel.name }}</div>
+                      <div class="muted-text">{{ channel.accounts }} cụm tài khoản / trang</div>
+                    </div>
+                    <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
                   </div>
-                  <span class="status-chip" [ngClass]="channel.statusClass">{{ channel.status }}</span>
+                  <div class="d-flex justify-content-between mt-3 mb-2">
+                    <span class="muted-text">Điểm ổn định</span>
+                    <strong>{{ channel.healthScore }}%</strong>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-app-teal" [style.width.%]="channel.healthScore"></div>
+                  </div>
+                  <div class="muted-text mt-2">Lần đồng bộ gần nhất: {{ channel.lastSync }}</div>
                 </div>
-                <div class="d-flex justify-content-between mt-3 mb-2">
-                  <span class="muted-text">Điểm ổn định</span>
-                  <strong>{{ channel.healthScore }}%</strong>
-                </div>
-                <div class="progress">
-                  <div class="progress-bar bg-app-teal" [style.width.%]="channel.healthScore"></div>
-                </div>
-                <div class="muted-text mt-2">Lần đồng bộ gần nhất: {{ channel.lastSync }}</div>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
+          </article>
+        </div>
 
-      <div class="col-lg-6">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Đề xuất chiến lược website</div>
-          <div class="card-copy mb-3">Gợi ý được rút ra từ lượt xem trang, số phiên, bài viết WordPress và dữ liệu SEO thật.</div>
+        <div class="col-lg-6">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-1">Đề xuất chiến lược website</div>
+            <div class="card-copy mb-3">Gợi ý rút ra từ lượt xem trang, số phiên, bài WordPress và tín hiệu SEO thật.</div>
 
-          <div class="soft-list">
-            <div class="soft-list-item" *ngFor="let rec of recommendations">
-              <span class="badge-dot"></span>
-              <div>
-                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                  <strong>{{ rec.title }}</strong>
-                  <span class="status-chip" [ngClass]="rec.priority === 'High' ? 'status-warning' : 'status-draft'">
-                    {{ rec.priority }}
-                  </span>
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let rec of recommendations">
+                <span class="badge-dot"></span>
+                <div>
+                  <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                    <strong>{{ rec.title }}</strong>
+                    <span class="status-chip" [ngClass]="rec.priority === 'High' ? 'status-warning' : 'status-draft'">
+                      {{ rec.priority }}
+                    </span>
+                  </div>
+                  <div class="muted-text">{{ rec.detail }}</div>
                 </div>
-                <div class="muted-text">{{ rec.detail }}</div>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+          </article>
+        </div>
+      </section>
 
-    <section class="row g-4 mt-1">
-      <div class="col-xl-8">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-1">Phân tích từ AI cục bộ</div>
-          <div class="card-copy mb-3">
-            AI sẽ phân tích các sheet `website`, `facebook`, `tiktok`, `linkedin`, `youtube`. Hiện tại chỉ có dữ liệu thật của website.
-          </div>
+      <section class="row g-4 mt-1">
+        <div class="col-xl-8">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-1">Phân tích từ AI cục bộ</div>
+            <div class="card-copy mb-3">
+              AI sẽ đọc các sheet `website`, `facebook`, `tiktok`, `linkedin`, `youtube`. Hiện tại website là nguồn dữ liệu thật đang hoạt động ổn định.
+            </div>
 
-          <div class="analysis-surface" *ngIf="localAiAnalysis; else pendingAiAnalysis">{{ localAiAnalysis.analysis }}</div>
-          <ng-template #pendingAiAnalysis>
-            <div class="muted-text">Đang chờ bản phân tích từ mô hình AI cục bộ.</div>
-          </ng-template>
-        </article>
-      </div>
+            <div class="analysis-surface" *ngIf="localAiAnalysis; else pendingAiAnalysis">{{ localAiAnalysis.analysis }}</div>
+            <ng-template #pendingAiAnalysis>
+              <div class="muted-text">{{ isAiLoading ? 'Đang chờ bản phân tích từ AI cục bộ.' : 'Chưa có bản phân tích để hiển thị.' }}</div>
+            </ng-template>
+          </article>
+        </div>
 
-      <div class="col-xl-4">
-        <article class="glass-card p-4 h-100">
-          <div class="card-title mb-3">Trạng thái nguồn dữ liệu</div>
-          <div class="soft-list">
-            <div class="soft-list-item" *ngFor="let channel of localAiAnalysis?.channels || []">
-              <span class="badge-dot"></span>
-              <div>
-                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                  <strong>{{ channel.name }}</strong>
-                  <span class="status-chip" [ngClass]="channel.rows > 0 ? 'status-live' : 'status-draft'">
-                    {{ channel.status }}
-                  </span>
+        <div class="col-xl-4">
+          <article class="glass-card p-4 h-100">
+            <div class="card-title mb-3">Trạng thái nguồn dữ liệu</div>
+            <div class="soft-list">
+              <div class="soft-list-item" *ngFor="let channel of localAiAnalysis?.channels || []">
+                <span class="badge-dot"></span>
+                <div>
+                  <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                    <strong>{{ channel.name }}</strong>
+                    <span class="status-chip" [ngClass]="channel.rows > 0 ? 'status-live' : 'status-draft'">
+                      {{ channel.status }}
+                    </span>
+                  </div>
+                  <div class="muted-text">{{ channel.detail }}</div>
                 </div>
-                <div class="muted-text">{{ channel.detail }}</div>
               </div>
             </div>
-          </div>
-        </article>
-      </div>
-    </section>
+          </article>
+        </div>
+      </section>
+    </ng-container>
   </div>
 </ion-content>

@@ -2,35 +2,44 @@
   <div class="app-page">
     <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
       <span class="section-kicker">Báo cáo tự động</span>
-      <h2 class="fw-bold mb-3">Báo cáo tổng hợp KPI, thông tin chi tiết và đề xuất theo ngày cho đội ngũ vận hành.</h2>
+      <h2 class="fw-bold mb-3">Tạo, xem lại và xóa báo cáo ngày trực tiếp trên sheet reportday.</h2>
       <p class="card-copy mb-0">
-        Trang này đọc trực tiếp báo cáo ngày mới nhất từ sheet <strong>reportday</strong> và cho phép tạo lại báo cáo ngay trong app.
+        Trang này đọc trực tiếp dữ liệu thật từ <strong>reportday</strong>. Bạn có thể tạo báo cáo mới, xóa báo cáo cũ và giao diện sẽ tự làm mới ngay sau thao tác.
       </p>
     </section>
 
     <section class="row g-4 mb-4">
       <div class="col-12">
         <article class="glass-card p-4">
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+          <div class="panel-head mb-3">
             <div>
               <div class="card-title">Báo cáo ngày mới nhất</div>
-              <div class="card-copy">
-                Dùng AI local để tổng hợp dữ liệu thật hiện có và ghi vào Google Sheet, sau đó đọc lại ngay trên giao diện.
-              </div>
+              <div class="card-copy">Bản mới nhất đang được đọc trực tiếp từ Google Sheet và tự làm mới dưới nền.</div>
             </div>
 
-            <button class="btn btn-app px-4" (click)="syncDailyReport()" [disabled]="isSyncingDailyReport">
-              <span *ngIf="!isSyncingDailyReport">Tạo báo cáo ngày</span>
-              <span *ngIf="isSyncingDailyReport" class="d-inline-flex align-items-center gap-2">
-                <span class="spinner-border spinner-border-sm"></span>
-                Đang tạo báo cáo
-              </span>
-            </button>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-outline-light" type="button" (click)="loadHistory()">Làm mới</button>
+              <button class="btn btn-outline-light" type="button" (click)="copyLatestReport()">Sao chép</button>
+              <button class="btn btn-outline-light" type="button" (click)="downloadLatestReport()">Tải TXT</button>
+              <button class="btn btn-app px-4" (click)="syncDailyReport()" [disabled]="isSyncingDailyReport">
+                <span *ngIf="!isSyncingDailyReport">Tạo báo cáo ngày</span>
+                <span *ngIf="isSyncingDailyReport" class="d-inline-flex align-items-center gap-2">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  Đang tạo báo cáo
+                </span>
+              </button>
+            </div>
           </div>
 
           <div class="alert alert-danger mb-3" *ngIf="dailyReportSyncError">{{ dailyReportSyncError }}</div>
+          <div class="alert alert-danger mb-3" *ngIf="dailyReportDeleteError">{{ dailyReportDeleteError }}</div>
+          <div class="alert alert-success mb-3" *ngIf="utilityMessage">{{ utilityMessage }}</div>
+          <div class="alert alert-warning mb-3" *ngIf="utilityError">{{ utilityError }}</div>
           <div class="alert alert-success mb-3" *ngIf="dailyReportSyncResult">
-            {{ dailyReportSyncResult.message }} Ngày báo cáo: {{ dailyReportSyncResult.reportDate }}. Model: {{ dailyReportSyncResult.model }}.
+            {{ dailyReportSyncResult.message }} Ngày báo cáo: {{ dailyReportSyncResult.reportDate }}.
+          </div>
+          <div class="alert alert-success mb-3" *ngIf="dailyReportDeleteResult">
+            {{ dailyReportDeleteResult.message }}
           </div>
           <div class="alert alert-warning mb-0" *ngIf="latestDailyReportError && !latestDailyReport">{{ latestDailyReportError }}</div>
 
@@ -74,6 +83,12 @@
               </div>
             </div>
 
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <button class="btn btn-outline-danger" type="button" (click)="deleteDailyReport(latestDailyReport.reportDate)" [disabled]="isDeleting(latestDailyReport.reportDate)">
+                {{ isDeleting(latestDailyReport.reportDate) ? 'Đang xóa...' : 'Xóa báo cáo này' }}
+              </button>
+            </div>
+
             <div class="row g-4">
               <div class="col-xl-6">
                 <article class="glass-card report-card p-4 h-100">
@@ -108,21 +123,44 @@
       </div>
     </section>
 
-    <section class="row g-4">
-      <div class="col-md-6 col-xl-4" *ngFor="let report of reports">
+    <section class="page-state" *ngIf="isLoading">
+      <div class="page-state-box">
+        <div class="loading-grid">
+          <div class="loading-skeleton"></div>
+          <div class="loading-skeleton"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="row g-4" *ngIf="!isLoading">
+      <div class="col-md-6 col-xl-4" *ngFor="let report of pagedReports">
         <article class="glass-card p-4 h-100">
-          <div class="card-title mb-2">{{ report.title }}</div>
-          <div class="muted-text mb-3">{{ report.summary }}</div>
+          <div class="card-title mb-2">Báo cáo {{ report.reportDate }}</div>
+          <div class="muted-text mb-3">{{ report.tongQuat }}</div>
           <div class="d-flex justify-content-between mb-2">
-            <span class="muted-text">Tần suất</span>
-            <strong>{{ report.cadence }}</strong>
+            <span class="muted-text">Model</span>
+            <strong>{{ report.model }}</strong>
           </div>
-          <div class="d-flex justify-content-between">
-            <span class="muted-text">Đối tượng nhận</span>
-            <strong>{{ report.target }}</strong>
+          <div class="d-flex justify-content-between mb-3">
+            <span class="muted-text">Tạo lúc</span>
+            <strong>{{ report.generatedAt }}</strong>
           </div>
+          <button class="btn btn-outline-danger w-100" type="button" (click)="deleteDailyReport(report.reportDate)" [disabled]="isDeleting(report.reportDate)">
+            {{ isDeleting(report.reportDate) ? 'Đang xóa...' : 'Xóa báo cáo ngày' }}
+          </button>
         </article>
       </div>
     </section>
+
+    <div class="pagination-shell" *ngIf="reportHistory.length > pageSize">
+      <div class="pagination-meta">
+        Hiển thị {{ (currentPage - 1) * pageSize + 1 }} -
+        {{ ((currentPage - 1) * pageSize) + pagedReports.length }} / {{ reportHistory.length }} báo cáo ngày
+      </div>
+      <div class="pagination-actions">
+        <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">Trước</button>
+        <button class="btn btn-outline-light" type="button" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">Sau</button>
+      </div>
+    </div>
   </div>
 </ion-content>

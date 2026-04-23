@@ -4,6 +4,8 @@ import asyncio
 import base64
 import json
 import logging
+import re
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -40,6 +42,40 @@ def resolve_image_topic(payload: MarketingPromptRequest) -> str:
     return topic or brief
 
 
+def _normalize_text_for_match(value: str) -> str:
+    lowered = value.lower().replace("đ", "d")
+    normalized = unicodedata.normalize("NFD", lowered)
+    stripped = "".join(character for character in normalized if unicodedata.category(character) != "Mn")
+    return re.sub(r"[^a-z0-9\s]", " ", stripped)
+
+
+def resolve_image_topic(payload: MarketingPromptRequest) -> str:
+    brief = " ".join(payload.brief.split()).strip()
+    if not brief:
+        return payload.goal.strip() or "chu de theo yeu cau"
+
+    original_tokens = re.findall(r"[^\W_]+", brief, flags=re.UNICODE)
+    if not original_tokens:
+        return brief
+
+    leading_fillers = {"hay", "vui", "long", "giup", "toi", "viet", "mot", "1", "bai", "gioi", "thieu", "ve", "noi"}
+    trailing_breakers = {"co", "kem", "chuan", "theo", "de", "muc", "giong", "tone", "platform", "nen", "tang", "dau", "ra", "phai", "la"}
+    normalized_tokens = [_normalize_text_for_match(token).strip() for token in original_tokens]
+    collected: list[str] = []
+
+    for token, normalized in zip(original_tokens, normalized_tokens):
+        if not normalized:
+            continue
+        if not collected and normalized in leading_fillers:
+            continue
+        if collected and normalized in trailing_breakers:
+            break
+        collected.append(token)
+
+    topic = " ".join(collected).strip(" .,-")
+    return topic or brief
+
+
 def ensure_generated_images_dir(draft_id: str) -> Path:
     target = GENERATED_IMAGES_DIR / draft_id
     target.mkdir(parents=True, exist_ok=True)
@@ -51,14 +87,18 @@ def build_image_prompt(
     slot: dict[str, str],
     caption: str,
     alt_text: str,
+    article_context: str = "",
 ) -> str:
     topic = resolve_image_topic(payload)
+    article_context_text = " ".join(article_context.split())
+    article_excerpt = article_context_text[:900] if article_context_text else ""
     return (
         f"Ảnh minh họa chất lượng cao cho bài viết về {topic}. "
         f"Vị trí chèn: {slot.get('placement', '')}. "
         f"Mô tả chính: {slot.get('description', '')}. "
         f"Caption tham chiếu: {caption}. "
         f"Alt text tham chiếu: {alt_text}. "
+        f"Nội dung bài viết cần bám theo: {article_excerpt}. "
         "Bố cục rõ ràng, đúng chủ đề, ánh sáng tự nhiên, chi tiết tốt, không chèn chữ, không watermark."
     ).strip()
 
@@ -67,6 +107,34 @@ def build_public_image_url(settings: Settings, draft_id: str, filename: str) -> 
     base_url = settings.public_backend_url.rstrip("/")
     query = urlencode({"path": f"{draft_id}/{filename}"})
     return f"{base_url}/api/content/generated-image?{query}"
+
+
+def build_image_prompt(
+    payload: MarketingPromptRequest,
+    slot: dict[str, str],
+    caption: str,
+    alt_text: str,
+    article_context: str = "",
+) -> str:
+    topic = resolve_image_topic(payload)
+    article_context_text = " ".join(article_context.split())
+    article_excerpt = article_context_text[:700] if article_context_text else ""
+    subject = " ".join(str(slot.get("description", "")).split())
+    context = " ".join(str(slot.get("placement", "")).split())
+    caption_text = " ".join((caption or "").split())
+    alt_text_value = " ".join((alt_text or "").split())
+    return (
+        f"Ảnh minh họa chất lượng cao cho bài viết về {topic}. "
+        f"Chủ thể chính: {subject}. "
+        f"Bối cảnh: {context}. "
+        "Góc chụp ưu tiên: trung cảnh hoặc cận cảnh rõ chủ thể, bố cục tập trung, không rối nền. "
+        "Phong cách: ảnh chụp editorial chân thực, phù hợp đăng website, không minh họa trừu tượng. "
+        "Màu sắc và chất liệu cần nhấn mạnh: men gốm, bề mặt thủ công, hoa văn, màu sắc tự nhiên của sản phẩm và không gian. "
+        f"Caption tham chiếu: {caption_text}. "
+        f"Alt text tham chiếu: {alt_text_value}. "
+        f"Nội dung bài viết cần bám theo: {article_excerpt}. "
+        "Yêu cầu bắt buộc: ảnh phải khớp đúng mô tả cảnh, đúng chủ đề, không chèn chữ, không watermark, không tạo chi tiết ngoài ngữ cảnh."
+    ).strip()
 
 
 def _normalize_base64_image(value: str) -> bytes:
@@ -112,6 +180,26 @@ def _replace_workflow_placeholders(value: Any, mapping: dict[str, Any]) -> Any:
     return value
 
 
+def _resolve_comfyui_sampler(raw_sampler_name: str) -> tuple[str, str]:
+    normalized = " ".join((raw_sampler_name or "").strip().lower().split())
+    sampler_map = {
+        "dpm++ 2m karras": ("dpmpp_2m", "karras"),
+        "dpm++ 2m": ("dpmpp_2m", "normal"),
+        "euler": ("euler", "normal"),
+        "euler a": ("euler_ancestral", "normal"),
+        "ddim": ("ddim", "normal"),
+    }
+    return sampler_map.get(normalized, ("dpmpp_2m", "normal"))
+
+
+def _resolve_comfyui_dimensions(settings: Settings) -> tuple[int, int]:
+    width = int(settings.local_image_width or 512)
+    height = int(settings.local_image_height or 512)
+    safe_width = max(512, min(width, 768))
+    safe_height = max(512, min(height, 768))
+    return safe_width, safe_height
+
+
 async def _generate_with_comfyui(prompt: str, settings: Settings) -> bytes:
     if not settings.comfyui_workflow_file:
         raise ValueError("COMFYUI_WORKFLOW_FILE chưa được cấu hình.")
@@ -121,14 +209,17 @@ async def _generate_with_comfyui(prompt: str, settings: Settings) -> bytes:
         raise ValueError(f"Không tìm thấy workflow ComfyUI: {workflow_path}")
 
     workflow_template = json.loads(workflow_path.read_text(encoding="utf-8"))
+    sampler_name, scheduler = _resolve_comfyui_sampler(settings.local_image_sampler)
+    width, height = _resolve_comfyui_dimensions(settings)
     mapping: dict[str, Any] = {
         "{{prompt}}": prompt,
         "{{negative_prompt}}": settings.local_image_negative_prompt,
-        "{{width}}": settings.local_image_width,
-        "{{height}}": settings.local_image_height,
+        "{{width}}": width,
+        "{{height}}": height,
         "{{steps}}": settings.local_image_steps,
         "{{cfg_scale}}": settings.local_image_cfg_scale,
-        "{{sampler_name}}": settings.local_image_sampler,
+        "{{sampler_name}}": sampler_name,
+        "{{scheduler}}": scheduler,
         "{{seed}}": 0,
     }
     workflow_payload = _replace_workflow_placeholders(workflow_template, mapping)
@@ -217,6 +308,7 @@ async def generate_images_for_slots(
     payload: MarketingPromptRequest,
     slot_metadata: list[dict[str, str]],
     settings: Settings,
+    article_context: str = "",
 ) -> list[GeneratedImageAsset]:
     provider = settings.local_image_provider.strip().lower()
     generated_assets: list[GeneratedImageAsset] = []
@@ -232,7 +324,7 @@ async def generate_images_for_slots(
         placement = slot.get("placement", "")
         caption = slot.get("caption", "")
         alt_text = slot.get("altText", "")
-        prompt = build_image_prompt(payload, slot, caption, alt_text)
+        prompt = build_image_prompt(payload, slot, caption, alt_text, article_context)
         asset = GeneratedImageAsset(
             slotId=slot.get("slotId", f"image-{index}"),
             placement=placement,

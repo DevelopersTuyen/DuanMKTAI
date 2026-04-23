@@ -1,0 +1,113 @@
+<ion-content class="page-shell" [fullscreen]="true">
+  <div class="app-page">
+    <section class="hero-panel glass-card p-4 p-lg-5 mb-4">
+      <span class="section-kicker">Hướng dẫn sử dụng</span>
+      <h2 class="fw-bold mb-3">Tài liệu thao tác chi tiết cho từng menu trong Marketing AI Hub.</h2>
+      <p class="card-copy mb-0">
+        Trang này dùng như sổ tay vận hành. Mỗi phân hệ đều có mục đích, nguồn dữ liệu, thao tác chính, tác vụ hỗ trợ và lỗi thường gặp.
+      </p>
+    </section>
+
+    <section class="row g-4 mb-4">
+      <div class="col-xl-8">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Quy trình khởi động khuyến nghị</div>
+          <div class="soft-list">
+            <div class="soft-list-item" *ngFor="let item of startupChecklist; let index = index">
+              <span class="badge-dot"></span>
+              <div>
+                <strong>Bước {{ index + 1 }}</strong>
+                <div class="muted-text">{{ item }}</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-xl-4">
+        <article class="glass-card p-4 h-100">
+          <div class="card-title mb-3">Đi nhanh tới từng phân hệ</div>
+          <div class="quick-nav-grid">
+            <button
+              *ngFor="let section of sections"
+              class="quick-nav-btn"
+              type="button"
+              (click)="scrollToSection(section.id)">
+              <ion-icon [name]="section.icon"></ion-icon>
+              <span>{{ section.title }}</span>
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-section mb-4" *ngFor="let section of sections" [attr.id]="section.id">
+      <article class="glass-card p-4 p-lg-5">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+          <div>
+            <div class="section-title-wrap">
+              <ion-icon [name]="section.icon"></ion-icon>
+              <div>
+                <div class="card-title">{{ section.title }}</div>
+                <div class="card-copy">{{ section.purpose }}</div>
+              </div>
+            </div>
+          </div>
+          <a class="btn btn-outline-light btn-sm" [routerLink]="section.route">Mở màn hình</a>
+        </div>
+
+        <div class="guide-source mb-4">
+          <strong>Nguồn dữ liệu:</strong>
+          <span>{{ section.dataSource }}</span>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="guide-block">
+              <div class="guide-block-title">Cách dùng từng bước</div>
+              <ol class="guide-list ordered">
+                <li *ngFor="let step of section.steps">{{ step }}</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="col-lg-3">
+            <div class="guide-block">
+              <div class="guide-block-title">Tác vụ hỗ trợ</div>
+              <ul class="guide-list">
+                <li *ngFor="let action of section.actions">{{ action }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col-lg-4">
+            <div class="guide-block guide-block-warning">
+              <div class="guide-block-title">Lưu ý và lỗi thường gặp</div>
+              <ul class="guide-list">
+                <li *ngFor="let issue of section.issues">{{ issue }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="row g-4">
+      <div class="col-lg-12">
+        <article class="glass-card p-4 p-lg-5">
+          <div class="card-title mb-3">Câu hỏi nhanh</div>
+          <ion-accordion-group>
+            <ion-accordion *ngFor="let item of faqs; let index = index" [value]="'faq-' + index">
+              <ion-item slot="header" color="transparent">
+                <ion-label>{{ item.question }}</ion-label>
+              </ion-item>
+              <div class="faq-answer" slot="content">
+                {{ item.answer }}
+              </div>
+            </ion-accordion>
+          </ion-accordion-group>
+        </article>
+      </div>
+    </section>
+  </div>
+</ion-content>

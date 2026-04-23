@@ -1,33 +1,71 @@
 .soft-panel {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.04);
 }
 
 .status-chip {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 999px;
-  padding: 0.2rem 0.7rem;
-  font-size: 0.75rem;
-  text-transform: uppercase;
+  display: inline-flex;
+  font-size: 0.7rem;
+  font-weight: 700;
+  justify-content: center;
   letter-spacing: 0.04em;
-  background: rgba(255, 255, 255, 0.1);
+  padding: 0.22rem 0.65rem;
+  text-transform: uppercase;
 }
 
 .status-chip-live {
-  background: rgba(55, 178, 77, 0.2);
-  color: #86efac;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
 }
 
 .status-chip-warn {
-  background: rgba(245, 158, 11, 0.18);
-  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
 }
 
 .status-chip-error {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.utility-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.weekday-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.weekday-chip {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  color: #1f2937;
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 3rem;
+  padding: 0.45rem 0.9rem;
+  transition: all 0.18s ease;
+}
+
+.weekday-chip:hover {
+  border-color: rgba(14, 116, 144, 0.4);
+  transform: translateY(-1px);
+}
+
+.weekday-chip-active {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.92), rgba(8, 145, 178, 0.92));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(8, 145, 178, 0.18);
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from copy import deepcopy
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from app.core.config import Settings
 from app.models import (
@@ -16,6 +17,7 @@ from app.models import (
     Recommendation,
     SeoInsightsResponse,
     TrendPoint,
+    WebsiteSummary,
 )
 from app.services.google_website import get_sheet_values, load_service_account_credentials
 from app.services.mock_data import get_data_sync_data
@@ -173,6 +175,80 @@ def build_recommendations(
     return recommendations[:3]
 
 
+def build_website_summaries(
+    latest_ga_rows: list[dict[str, str]],
+    latest_gsc_rows: list[dict[str, str]],
+    latest_post_rows: list[dict[str, str]],
+) -> list[WebsiteSummary]:
+    summary_by_site: dict[str, dict[str, float | str | int | None]] = defaultdict(
+        lambda: {
+            "siteUrl": None,
+            "gaPropertyId": None,
+            "gscSiteUrl": None,
+            "pageViews": 0.0,
+            "sessions": 0.0,
+            "posts": 0,
+            "trackedPages": 0,
+            "clicks": 0.0,
+            "impressions": 0.0,
+            "positionTotal": 0.0,
+            "positionRows": 0,
+        }
+    )
+
+    for row in latest_ga_rows:
+        site = row.get("hostname") or "unknown"
+        summary = summary_by_site[site]
+        summary["siteUrl"] = summary.get("siteUrl") or (f"https://{site}/" if site != "unknown" else None)
+        summary["gaPropertyId"] = summary.get("gaPropertyId") or row.get("property_id")
+        summary["pageViews"] = float(summary["pageViews"]) + to_float(row.get("page_views_28d"))
+        summary["sessions"] = float(summary["sessions"]) + to_float(row.get("sessions_28d"))
+        summary["trackedPages"] = int(summary["trackedPages"]) + 1
+
+    for row in latest_gsc_rows:
+        site = row.get("hostname") or "unknown"
+        summary = summary_by_site[site]
+        summary["siteUrl"] = summary.get("siteUrl") or (f"https://{site}/" if site != "unknown" else None)
+        summary["gscSiteUrl"] = summary.get("gscSiteUrl") or row.get("gsc_site_url")
+        summary["clicks"] = float(summary["clicks"]) + to_float(row.get("clicks_28d"))
+        summary["impressions"] = float(summary["impressions"]) + to_float(row.get("impressions_28d"))
+        summary["positionTotal"] = float(summary["positionTotal"]) + to_float(row.get("position_28d"))
+        summary["positionRows"] = int(summary["positionRows"]) + 1
+
+    for row in latest_post_rows:
+        site = (row.get("site") or urlparse(row.get("url", "")).netloc or "unknown").lower()
+        summary = summary_by_site[site]
+        summary["siteUrl"] = summary.get("siteUrl") or (f"https://{site}/" if site != "unknown" else None)
+        summary["gscSiteUrl"] = summary.get("gscSiteUrl") or row.get("gsc_site_url")
+        summary["gaPropertyId"] = summary.get("gaPropertyId") or row.get("ga_property_id")
+        summary["posts"] = int(summary["posts"]) + 1
+
+    website_summaries: list[WebsiteSummary] = []
+    for site, values in sorted(summary_by_site.items(), key=lambda item: float(item[1]["pageViews"]), reverse=True):
+        impressions = float(values["impressions"])
+        ctr = compute_rate(float(values["clicks"]), impressions)
+        position_rows = int(values["positionRows"])
+        avg_position = round(float(values["positionTotal"]) / position_rows, 2) if position_rows else 0.0
+        website_summaries.append(
+            WebsiteSummary(
+                site=site,
+                siteUrl=values["siteUrl"] if isinstance(values["siteUrl"], str) else None,
+                gaPropertyId=values["gaPropertyId"] if isinstance(values["gaPropertyId"], str) else None,
+                gscSiteUrl=values["gscSiteUrl"] if isinstance(values["gscSiteUrl"], str) else None,
+                pageViews=format_compact_number(float(values["pageViews"])),
+                sessions=format_compact_number(float(values["sessions"])),
+                posts=int(values["posts"]),
+                trackedPages=int(values["trackedPages"]),
+                clicks=round(float(values["clicks"])),
+                ctr=ctr,
+                position=avg_position,
+                syncStatus="Đã map GSC" if values["gscSiteUrl"] else "Thiếu map GSC",
+            )
+        )
+
+    return website_summaries
+
+
 def load_website_dataset(settings: Settings) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     cache_key = build_dataset_cache_key(settings)
     cached = _WEBSITE_DATASET_CACHE.get(cache_key)
@@ -279,11 +355,14 @@ def get_website_dashboard_data(settings: Settings) -> DashboardResponse:
         analytics_property_count=len(settings.get_google_analytics_property_ids()) or 1,
     ).syncChannels
 
+    website_summaries = build_website_summaries(latest_ga_rows, latest_gsc_rows, latest_post_rows)
+
     return DashboardResponse(
         kpis=kpis,
         performanceTrend=trend_points or [TrendPoint(label="Không có dữ liệu", value=0)],
         channelBreakdown=channel_breakdown or [ChannelShare(name="Chưa có dữ liệu", value=100)],
         syncChannels=sync_channels,
+        websiteSummaries=website_summaries,
         recommendations=build_recommendations(latest_ga_rows, latest_gsc_rows, latest_post_rows),
     )
 
@@ -404,5 +483,6 @@ def get_website_seo_data(settings: Settings) -> SeoInsightsResponse:
 
     return SeoInsightsResponse(
         keywords=keywords,
+        websiteSummaries=build_website_summaries(latest_ga_rows, latest_gsc_rows, latest_post_rows),
         recommendations=recommendations[:3],
     )

@@ -46,7 +46,13 @@ class Settings(BaseSettings):
     automatic1111_base_url: str = "http://127.0.0.1:7860"
     comfyui_base_url: str = "http://127.0.0.1:8188"
     comfyui_workflow_file: str | None = None
+    sync_mode: str = "interval"
+    sync_start_time: str = "08:00"
     sync_interval_minutes: int = 60
+    sync_days_of_week_json: str | None = None
+    sync_loop_enabled: bool = True
+    sync_website_enabled: bool = True
+    sync_social_enabled: bool = True
     auto_sync: bool = True
     auto_recommend: bool = True
     auto_schedule: bool = False
@@ -57,6 +63,7 @@ class Settings(BaseSettings):
     wordpress_posts_worksheet: str = "Post_web"
     daily_report_worksheet: str = "reportday"
     google_search_console_site_url: str | None = None
+    google_search_console_site_urls_json: str | None = None
     google_analytics_property_id: str | None = None
     google_analytics_property_ids_json: str | None = None
     facebook_worksheet: str = "facebook"
@@ -131,6 +138,18 @@ class Settings(BaseSettings):
 
         return []
 
+    def get_google_search_console_site_urls(self) -> list[str]:
+        if self.google_search_console_site_urls_json and self.google_search_console_site_urls_json.strip():
+            data = json.loads(self.google_search_console_site_urls_json)
+            if not isinstance(data, list):
+                raise ValueError("GOOGLE_SEARCH_CONSOLE_SITE_URLS_JSON must be a JSON array.")
+            return [str(item).strip() for item in data if str(item).strip()]
+
+        if self.google_search_console_site_url and self.google_search_console_site_url.strip():
+            return [self.google_search_console_site_url.strip()]
+
+        return []
+
     def get_facebook_page_ids(self) -> list[str]:
         if self.facebook_page_ids_json and self.facebook_page_ids_json.strip():
             data = json.loads(self.facebook_page_ids_json)
@@ -163,6 +182,23 @@ class Settings(BaseSettings):
             return [self.youtube_channel_id.strip()]
 
         return []
+
+    def get_sync_days_of_week(self) -> list[int]:
+        if self.sync_days_of_week_json and self.sync_days_of_week_json.strip():
+            data = json.loads(self.sync_days_of_week_json)
+            if not isinstance(data, list):
+                raise ValueError("SYNC_DAYS_OF_WEEK_JSON must be a JSON array.")
+
+            normalized_days = sorted(
+                {
+                    int(item)
+                    for item in data
+                    if str(item).strip().isdigit() and 0 <= int(item) <= 6
+                }
+            )
+            return normalized_days or [0, 1, 2, 3, 4, 5, 6]
+
+        return [0, 1, 2, 3, 4, 5, 6]
 
 
 @lru_cache
